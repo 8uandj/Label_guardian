@@ -14,7 +14,7 @@ VM name: label-guardian-vm
 Zone: asia-southeast1-a
 Static IP: 34.143.247.68
 Domain: https://labelguardian.space
-Source path trên VM: ~/P-209-develop
+Source path trên VM: /opt/label-guardian/app
 Production env file: /opt/label-guardian/.env.production
 Compose file: docker-compose.selfhost.yml
 ```
@@ -37,7 +37,7 @@ Nguyên tắc chung:
 - Không sửa trực tiếp file production rồi bỏ đó không commit.
 - Không commit `.env`, secret, token, key hoặc credential.
 - Không chạy lệnh destructive như `git reset --hard`, `docker system prune -a`, xóa volume hoặc xóa database nếu chưa thống nhất.
-- Mỗi người làm trên branch riêng, không cùng sửa trực tiếp trên `develop`.
+- Mỗi người làm trên branch riêng, không cùng sửa trực tiếp trên `main`.
 - Chỉ deploy từ branch/commit đã rõ ràng.
 - Trước khi deploy phải kiểm tra trạng thái container và health endpoint.
 
@@ -76,7 +76,7 @@ gcloud compute ssh label-guardian-vm \
 Sau khi vào VM:
 
 ```bash
-cd ~/P-209-develop
+cd /opt/label-guardian/app
 git status
 ```
 
@@ -92,8 +92,9 @@ sudo -E docker compose --env-file "$SELFHOST_ENV_FILE" \
 Kiểm tra app:
 
 ```bash
-curl -f https://labelguardian.space/healthz
-curl -f https://labelguardian.space/ready
+curl -f https://api.labelguardian.space/health
+curl -f https://api.labelguardian.space/ready
+curl -f https://api.labelguardian.space/api/v1/health
 ```
 
 ## 5. Mở Workspace VM Bằng VS Code Remote SSH
@@ -169,7 +170,7 @@ File → Open Folder
 Chọn:
 
 ```text
-/home/<your-linux-username>/P-209-develop
+/opt/label-guardian/app
 ```
 
 Nếu repo nằm trong home của user khác, hỏi maintainer trước khi sửa quyền hoặc copy repo. Không tự `chmod -R 777`.
@@ -179,16 +180,16 @@ Nếu repo nằm trong home của user khác, hỏi maintainer trước khi sử
 Trước khi sửa:
 
 ```bash
-cd ~/P-209-develop
+cd /opt/label-guardian/app
 git fetch origin
 git status
 ```
 
-Nếu đang ở `develop`, tạo branch riêng:
+Nếu đang ở `main`, tạo branch riêng:
 
 ```bash
-git switch develop
-git pull --ff-only origin develop
+git switch main
+git pull --ff-only origin main
 git switch -c feature/<short-task-name>
 ```
 
@@ -218,7 +219,7 @@ Push branch:
 git push -u origin feature/<short-task-name>
 ```
 
-Sau đó mở PR hoặc nhờ reviewer merge vào `develop`.
+Sau đó mở PR hoặc nhờ reviewer merge vào `main`.
 
 ## 7. Cách Tránh Conflict Khi Nhiều Người Cùng Sửa
 
@@ -226,9 +227,9 @@ Không có cách nào loại bỏ conflict hoàn toàn, nhưng có thể giảm 
 
 Quy ước bắt buộc:
 
-- Không cùng sửa trực tiếp trên `develop`.
+- Không cùng sửa trực tiếp trên `main`.
 - Mỗi task dùng một branch riêng.
-- Trước khi bắt đầu task, luôn `git pull --ff-only origin develop`.
+- Trước khi bắt đầu task, luôn `git pull --ff-only origin main`.
 - Branch nhỏ, thay đổi nhỏ, merge sớm.
 - Không format toàn bộ repo nếu task chỉ sửa một phần nhỏ.
 - Không sửa file env production trừ khi task là deployment/config.
@@ -246,7 +247,7 @@ Trước khi merge branch:
 
 ```bash
 git fetch origin
-git rebase origin/develop
+git rebase origin/main
 ```
 
 Nếu có conflict, xử lý trên branch cá nhân, test lại, rồi push:
@@ -255,7 +256,7 @@ Nếu có conflict, xử lý trên branch cá nhân, test lại, rồi push:
 git push --force-with-lease
 ```
 
-Chỉ dùng `--force-with-lease` trên branch của chính mình. Không force push `develop`.
+Chỉ dùng `--force-with-lease` trên branch của chính mình. Không force push `main`.
 
 ## 8. Đồng Bộ Từ Git Lên VM Và Deploy
 
@@ -272,12 +273,12 @@ Script này sẽ:
 - Lấy snapshot từ Git ref được chỉ định bằng `git archive`.
 - Upload archive sang VM qua `scp`.
 - Extract vào thư mục tạm trên VM.
-- `rsync --delete` snapshot vào `/home/hung8uandj/P-209-develop`.
+- `rsync --delete` snapshot vào `/opt/label-guardian/app`.
 - Không đồng bộ `.env`, secret, data runtime hoặc `node_modules`.
-- Build lại backend/frontend Docker images.
+- Build lại backend Docker image.
 - Chạy database migration.
-- Restart backend, frontend và Caddy proxy.
-- Kiểm tra `https://labelguardian.space/healthz` và `/ready`.
+- Restart backend và Caddy API proxy.
+- Kiểm tra `https://api.labelguardian.space/health`, `/ready`, và `/api/v1/health`.
 
 ### 8.1. Chuẩn Bị Trước Khi Deploy
 
@@ -293,29 +294,29 @@ Kết quả mong đợi:
 label-guardian-vm
 ```
 
-Đảm bảo code cần deploy đã nằm trong Git ref bạn muốn deploy. Ví dụ nếu deploy `origin/develop`:
+Đảm bảo code cần deploy đã nằm trong Git ref bạn muốn deploy. Ví dụ nếu deploy `origin/main`:
 
 ```bash
 git fetch origin
-git switch develop
-git pull --ff-only origin develop
+git switch main
+git pull --ff-only origin main
 git status --short
 ```
 
 Nếu `git status --short` còn file chưa commit, các file đó sẽ không được deploy trừ khi bạn commit chúng vào Git ref được chọn.
 
-### 8.2. Deploy `origin/develop`
+### 8.2. Deploy `origin/main`
 
-Đây là lệnh deploy chuẩn sau khi PR/branch đã merge vào `develop`:
+Đây là lệnh deploy chuẩn sau khi thay đổi đã merge vào `main`:
 
 ```bash
-scripts/deploy_selfhost_vm.sh origin/develop
+scripts/deploy_selfhost_vm.sh origin/main
 ```
 
-Nếu muốn deploy local branch `develop`:
+Nếu muốn deploy local branch `main`:
 
 ```bash
-scripts/deploy_selfhost_vm.sh develop
+scripts/deploy_selfhost_vm.sh main
 ```
 
 Nếu muốn deploy một commit cụ thể:
@@ -335,7 +336,7 @@ scripts/deploy_selfhost_vm.sh 03640122
 Chỉ dùng khi chắc chắn thay đổi không đụng schema/database:
 
 ```bash
-SKIP_MIGRATIONS=1 scripts/deploy_selfhost_vm.sh origin/develop
+SKIP_MIGRATIONS=1 scripts/deploy_selfhost_vm.sh origin/main
 ```
 
 Mặc định nên để script chạy migration, vì migration idempotent theo Alembic và an toàn hơn khi có thay đổi backend/database.
@@ -345,26 +346,27 @@ Mặc định nên để script chạy migration, vì migration idempotent theo 
 Nếu SSH alias của bạn khác:
 
 ```bash
-VM_HOST=label-guardian-vm scripts/deploy_selfhost_vm.sh origin/develop
+VM_HOST=label-guardian-vm scripts/deploy_selfhost_vm.sh origin/main
 ```
 
 Nếu VM app dir thay đổi:
 
 ```bash
-VM_APP_DIR=/home/hung8uandj/P-209-develop scripts/deploy_selfhost_vm.sh origin/develop
+VM_APP_DIR=/opt/label-guardian/app scripts/deploy_selfhost_vm.sh origin/main
 ```
 
 Các biến mặc định:
 
 ```text
 VM_HOST=label-guardian-vm
-VM_APP_DIR=/home/hung8uandj/P-209-develop
+VM_APP_DIR=/opt/label-guardian/app
 SELFHOST_ENV_FILE=/opt/label-guardian/.env.production
 SELFHOST_DATA_DIR=/opt/label-guardian/data
 SELFHOST_GCLOUD_CONFIG_DIR=/opt/label-guardian/gcloud
-IMAGE_TAG=vm-public
-APP_HEALTH_URL=https://labelguardian.space/healthz
-APP_READY_URL=https://labelguardian.space/ready
+IMAGE_TAG=vm-api
+APP_HEALTH_URL=https://api.labelguardian.space/health
+APP_READY_URL=https://api.labelguardian.space/ready
+APP_V1_HEALTH_URL=https://api.labelguardian.space/api/v1/health
 ```
 
 ### 8.5. Vì Sao Cách Này Giảm Conflict
@@ -406,7 +408,7 @@ scripts/sync_selfhost_vm_from_vm.sh ../label-guardian-vm-snapshot
 
 Script này sẽ:
 
-- Kéo source hiện đang nằm ở `/home/hung8uandj/P-209-develop` trên VM về máy local.
+- Kéo source hiện đang nằm ở `/opt/label-guardian/app` trên VM về máy local.
 - Không kéo `.env`, `.env.*`, secret, data runtime, `.git`, `node_modules`, cache hoặc virtualenv.
 - Không xóa file local dư thừa theo mặc định.
 - Có thể chạy dry-run trước để xem sẽ sync gì.
@@ -488,7 +490,7 @@ Sửa:
 sudo nano /opt/label-guardian/.env.production
 ```
 
-Sau khi sửa env, restart các service liên quan. Nếu đổi biến build-time của frontend như `VITE_*`, cần build lại frontend image.
+Sau khi sửa env, restart các service liên quan. Nếu đổi biến build-time của frontend như `VITE_*`, cập nhật biến trên Vercel và redeploy frontend ở đó.
 
 ## 12. Checklist Trước Khi Kết Thúc Task
 
@@ -498,8 +500,9 @@ Trước khi rời VM hoặc báo task xong:
 - Branch đã push lên remote nếu có thay đổi code.
 - Không để secret trong shell history, commit, log hoặc issue.
 - Container đang healthy.
-- `https://labelguardian.space/healthz` trả OK.
-- `https://labelguardian.space/ready` trả OK.
+- `https://api.labelguardian.space/health` trả OK.
+- `https://api.labelguardian.space/ready` trả OK.
+- `https://api.labelguardian.space/api/v1/health` trả OK.
 - Nếu có migration, đã xác nhận migration chạy thành công.
 - Nếu có thay đổi auth/domain, đã cập nhật Supabase redirect URL tương ứng.
 

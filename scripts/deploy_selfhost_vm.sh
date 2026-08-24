@@ -18,7 +18,7 @@ Examples:
 
 Environment overrides:
   VM_HOST=label-guardian-vm
-  VM_APP_DIR=/home/hung8uandj/P-209-develop
+  VM_APP_DIR=/opt/label-guardian/app
   SELFHOST_ENV_FILE=/opt/label-guardian/.env.production
   SELFHOST_DATA_DIR=/opt/label-guardian/data
   SELFHOST_GCLOUD_CONFIG_DIR=/opt/label-guardian/gcloud
@@ -39,7 +39,7 @@ fi
 
 REF="${1:-origin/main}"
 VM_HOST="${VM_HOST:-label-guardian-vm}"
-VM_APP_DIR="${VM_APP_DIR:-/home/hung8uandj/P-209-develop}"
+VM_APP_DIR="${VM_APP_DIR:-/opt/label-guardian/app}"
 SELFHOST_ENV_FILE="${SELFHOST_ENV_FILE:-/opt/label-guardian/.env.production}"
 SELFHOST_DATA_DIR="${SELFHOST_DATA_DIR:-/opt/label-guardian/data}"
 SELFHOST_GCLOUD_CONFIG_DIR="${SELFHOST_GCLOUD_CONFIG_DIR:-/opt/label-guardian/gcloud}"

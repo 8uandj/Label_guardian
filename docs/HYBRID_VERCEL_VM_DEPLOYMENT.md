@@ -229,7 +229,7 @@ VM logs:
 
 ```bash
 ssh label-guardian-vm
-cd ~/P-209-develop
+cd /opt/label-guardian/app
 sudo docker compose --env-file /opt/label-guardian/.env.production -f docker-compose.selfhost.yml logs -f backend
 sudo docker compose --env-file /opt/label-guardian/.env.production -f docker-compose.selfhost.yml logs -f proxy
 ```

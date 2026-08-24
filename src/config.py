@@ -62,6 +62,8 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://label_guardian:label_guardian_dev@localhost:5432/label_guardian"
+    database_pool_size: int = Field(default=5, ge=1, le=50)
+    database_max_overflow: int = Field(default=10, ge=0, le=50)
 
     # Vector Store
     chroma_persist_dir: str = "./data/chroma"

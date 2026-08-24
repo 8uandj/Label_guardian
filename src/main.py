@@ -37,7 +37,11 @@ def create_app(
     database_engine = None
     application_session_factory = db_session_factory
     if application_session_factory is None:
-        database_engine = create_database_engine(app_settings.database_url)
+        database_engine = create_database_engine(
+            app_settings.database_url,
+            pool_size=app_settings.database_pool_size,
+            max_overflow=app_settings.database_max_overflow,
+        )
         application_session_factory = create_session_factory(database_engine)
 
     @asynccontextmanager

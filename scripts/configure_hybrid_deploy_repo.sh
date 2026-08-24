@@ -3,12 +3,12 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Configure a deploy mirror repo for the hybrid production topology:
+Configure this deploy repo for the hybrid production topology:
 
   Vercel hosts frontend/
   VM hosts backend + Caddy API proxy
 
-Run this inside the deploy mirror repo after publishing the mirror.
+Run this inside the deploy repo.
 
 Usage:
   scripts/configure_hybrid_deploy_repo.sh
@@ -43,9 +43,10 @@ def rewrite(path: str, replacements: list[tuple[str, str]]) -> None:
     file_path = Path(path)
     text = file_path.read_text(encoding="utf-8")
     for old, new in replacements:
-        if old not in text:
+        if old in text:
+            text = text.replace(old, new)
+        elif new not in text:
             raise SystemExit(f"Expected text not found in {path}: {old!r}")
-        text = text.replace(old, new)
     file_path.write_text(text, encoding="utf-8")
 
 
@@ -91,11 +92,6 @@ rewrite(
             "CORS_ORIGINS=https://label-guardian.example.com",
             "# Public HTTPS origins where users open the Vercel frontend. Required by production CORS validation.\n"
             f"CORS_ORIGINS=https://{frontend_domain},https://www.{frontend_domain}",
-        ),
-        (
-            "FRONTEND_BIND_ADDRESS=0.0.0.0",
-            "# Optional local frontend container port. The public domain should be served by Vercel.\n"
-            "FRONTEND_BIND_ADDRESS=127.0.0.1",
         ),
         (
             "# Public internet deployment. Point this domain's DNS A record to the server IP,\n"
@@ -160,4 +156,4 @@ rewrite(
 PY
 
 echo "Hybrid deploy repo configuration applied."
-echo "Review changes, then commit in the deploy mirror repo."
+echo "Review changes, then commit in the deploy repo."

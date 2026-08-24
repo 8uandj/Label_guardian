@@ -17,7 +17,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      frontend:
+      backend:
         condition: service_healthy
     restart: unless-stopped
 
@@ -71,35 +71,6 @@ services:
       - ${SELFHOST_GCLOUD_CONFIG_DIR:-/opt/label-guardian/gcloud}:/home/appuser/.config/gcloud:ro,Z
     command: ["python", "-m", "alembic", "upgrade", "head"]
     restart: "no"
-
-  frontend:
-    image: label-guardian-frontend:${IMAGE_TAG:-selfhost}
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_DATA_SOURCE: ${VITE_DATA_SOURCE:-api}
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
-        VITE_DATASET_ID: ${DATASET_ID:-nuscenes}
-        VITE_DATASET_NAME: ${VITE_DATASET_NAME:-nuScenes cloud dataset}
-        VITE_DATASET_FORMAT: ${VITE_DATASET_FORMAT:-nuScenes}
-        VITE_DATASET_VERSION: ${DATASET_VERSION:-v1.0-trainval}
-        VITE_DATASET_DEFAULT_SPLIT: ${DATASET_DEFAULT_SPLIT:-trainval-full}
-        VITE_AUTH_MODE: ${VITE_AUTH_MODE:-supabase}
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-    ports:
-      - "${FRONTEND_BIND_ADDRESS:-0.0.0.0}:${FRONTEND_PORT:-8080}:80"
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
 volumes:
   caddy_data:
   caddy_config:

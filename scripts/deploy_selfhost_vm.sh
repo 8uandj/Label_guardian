@@ -12,8 +12,8 @@ Usage:
   scripts/deploy_selfhost_vm.sh [git-ref]
 
 Examples:
-  scripts/deploy_selfhost_vm.sh origin/develop
-  scripts/deploy_selfhost_vm.sh develop
+  scripts/deploy_selfhost_vm.sh origin/main
+  scripts/deploy_selfhost_vm.sh main
   scripts/deploy_selfhost_vm.sh 03640122
 
 Environment overrides:
@@ -22,9 +22,10 @@ Environment overrides:
   SELFHOST_ENV_FILE=/opt/label-guardian/.env.production
   SELFHOST_DATA_DIR=/opt/label-guardian/data
   SELFHOST_GCLOUD_CONFIG_DIR=/opt/label-guardian/gcloud
-  IMAGE_TAG=vm-public
-  APP_HEALTH_URL=https://labelguardian.space/healthz
-  APP_READY_URL=https://labelguardian.space/ready
+  IMAGE_TAG=vm-api
+  APP_HEALTH_URL=https://api.labelguardian.space/health
+  APP_READY_URL=https://api.labelguardian.space/ready
+  APP_V1_HEALTH_URL=https://api.labelguardian.space/api/v1/health
   DEPLOY_HEALTH_ATTEMPTS=30
   DEPLOY_HEALTH_INTERVAL_SECONDS=2
   SKIP_MIGRATIONS=1
@@ -36,15 +37,16 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
-REF="${1:-origin/develop}"
+REF="${1:-origin/main}"
 VM_HOST="${VM_HOST:-label-guardian-vm}"
 VM_APP_DIR="${VM_APP_DIR:-/home/hung8uandj/P-209-develop}"
 SELFHOST_ENV_FILE="${SELFHOST_ENV_FILE:-/opt/label-guardian/.env.production}"
 SELFHOST_DATA_DIR="${SELFHOST_DATA_DIR:-/opt/label-guardian/data}"
 SELFHOST_GCLOUD_CONFIG_DIR="${SELFHOST_GCLOUD_CONFIG_DIR:-/opt/label-guardian/gcloud}"
-IMAGE_TAG="${IMAGE_TAG:-vm-public}"
-APP_HEALTH_URL="${APP_HEALTH_URL:-https://labelguardian.space/healthz}"
-APP_READY_URL="${APP_READY_URL:-https://labelguardian.space/ready}"
+IMAGE_TAG="${IMAGE_TAG:-vm-api}"
+APP_HEALTH_URL="${APP_HEALTH_URL:-https://api.labelguardian.space/health}"
+APP_READY_URL="${APP_READY_URL:-https://api.labelguardian.space/ready}"
+APP_V1_HEALTH_URL="${APP_V1_HEALTH_URL:-https://api.labelguardian.space/api/v1/health}"
 DEPLOY_HEALTH_ATTEMPTS="${DEPLOY_HEALTH_ATTEMPTS:-30}"
 DEPLOY_HEALTH_INTERVAL_SECONDS="${DEPLOY_HEALTH_INTERVAL_SECONDS:-2}"
 SKIP_MIGRATIONS="${SKIP_MIGRATIONS:-0}"
@@ -105,6 +107,7 @@ ssh "$VM_HOST" \
    SHORT_SHA='$SHORT_SHA' \
    APP_HEALTH_URL='$APP_HEALTH_URL' \
    APP_READY_URL='$APP_READY_URL' \
+   APP_V1_HEALTH_URL='$APP_V1_HEALTH_URL' \
    DEPLOY_HEALTH_ATTEMPTS='$DEPLOY_HEALTH_ATTEMPTS' \
    DEPLOY_HEALTH_INTERVAL_SECONDS='$DEPLOY_HEALTH_INTERVAL_SECONDS' \
    SKIP_MIGRATIONS='$SKIP_MIGRATIONS' \
@@ -146,13 +149,10 @@ CANDIDATE_IMAGE_TAG="${STABLE_IMAGE_TAG}-${SHORT_SHA}"
 PREVIOUS_IMAGE_TAG="${STABLE_IMAGE_TAG}-previous"
 HAS_STABLE=0
 
-if sudo docker image inspect "label-guardian-backend:${STABLE_IMAGE_TAG}" >/dev/null 2>&1 &&
-   sudo docker image inspect "label-guardian-frontend:${STABLE_IMAGE_TAG}" >/dev/null 2>&1; then
+if sudo docker image inspect "label-guardian-backend:${STABLE_IMAGE_TAG}" >/dev/null 2>&1; then
   HAS_STABLE=1
   sudo docker tag "label-guardian-backend:${STABLE_IMAGE_TAG}" \
     "label-guardian-backend:${PREVIOUS_IMAGE_TAG}"
-  sudo docker tag "label-guardian-frontend:${STABLE_IMAGE_TAG}" \
-    "label-guardian-frontend:${PREVIOUS_IMAGE_TAG}"
 fi
 
 wait_for_url() {
@@ -178,7 +178,7 @@ rollback_to_stable() {
   sudo -E docker compose --env-file "$SELFHOST_ENV_FILE" \
     -f docker-compose.selfhost.yml \
     --profile internet \
-    up -d --remove-orphans --no-build backend frontend proxy
+    up -d --remove-orphans --no-build backend proxy
 }
 
 echo "Building candidate tag: $CANDIDATE_IMAGE_TAG"
@@ -186,7 +186,7 @@ export IMAGE_TAG="$CANDIDATE_IMAGE_TAG"
 
 sudo -E docker compose --env-file "$SELFHOST_ENV_FILE" \
   -f docker-compose.selfhost.yml \
-  build backend frontend
+  build backend
 
 if [[ "$SKIP_MIGRATIONS" != "1" ]]; then
   sudo -E docker compose --env-file "$SELFHOST_ENV_FILE" \
@@ -198,20 +198,18 @@ fi
 if ! sudo -E docker compose --env-file "$SELFHOST_ENV_FILE" \
   -f docker-compose.selfhost.yml \
   --profile internet \
-  up -d --remove-orphans backend frontend proxy; then
+  up -d --remove-orphans backend proxy; then
   rollback_to_stable || true
   exit 1
 fi
 
-if ! wait_for_url "$APP_HEALTH_URL" || ! wait_for_url "$APP_READY_URL"; then
+if ! wait_for_url "$APP_HEALTH_URL" || ! wait_for_url "$APP_READY_URL" || ! wait_for_url "$APP_V1_HEALTH_URL"; then
   rollback_to_stable || true
   exit 1
 fi
 
 sudo docker tag "label-guardian-backend:${CANDIDATE_IMAGE_TAG}" \
   "label-guardian-backend:${STABLE_IMAGE_TAG}"
-sudo docker tag "label-guardian-frontend:${CANDIDATE_IMAGE_TAG}" \
-  "label-guardian-frontend:${STABLE_IMAGE_TAG}"
 echo "Candidate healthy; promoted to stable tag: $STABLE_IMAGE_TAG"
 
 sudo -E docker compose --env-file "$SELFHOST_ENV_FILE" \
@@ -225,5 +223,7 @@ echo "Verifying public endpoints..."
 curl -f "$APP_HEALTH_URL"
 echo
 curl -f "$APP_READY_URL"
+echo
+curl -f "$APP_V1_HEALTH_URL"
 echo
 echo "Deploy complete: $SHORT_SHA"

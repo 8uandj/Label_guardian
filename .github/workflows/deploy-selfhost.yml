@@ -2,14 +2,14 @@ name: Self-hosted Deploy
 
 on:
   push:
-    branches: [develop]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: selfhost-deploy-develop
+  group: selfhost-deploy-main
   cancel-in-progress: false
 
 jobs:
@@ -21,10 +21,11 @@ jobs:
     env:
       SELFHOST_ENV_FILE: /opt/label-guardian/.env.production
       SELFHOST_DATA_DIR: /opt/label-guardian/data
-      STABLE_IMAGE_TAG: vm-public
+      STABLE_IMAGE_TAG: vm-api
       IMAGE_TAG: ${{ github.sha }}
-      APP_HEALTH_URL: https://labelguardian.space/healthz
-      APP_READY_URL: https://labelguardian.space/ready
+      APP_HEALTH_URL: https://api.labelguardian.space/health
+      APP_READY_URL: https://api.labelguardian.space/ready
+      APP_V1_HEALTH_URL: https://api.labelguardian.space/api/v1/health
 
     steps:
       - uses: actions/checkout@v4
@@ -39,16 +40,14 @@ jobs:
       - name: Preserve stable images
         run: |
           set -eu
-          if docker image inspect "label-guardian-backend:${STABLE_IMAGE_TAG}" >/dev/null 2>&1 && \
-             docker image inspect "label-guardian-frontend:${STABLE_IMAGE_TAG}" >/dev/null 2>&1; then
+          if docker image inspect "label-guardian-backend:${STABLE_IMAGE_TAG}" >/dev/null 2>&1; then
             docker tag "label-guardian-backend:${STABLE_IMAGE_TAG}" "label-guardian-backend:${STABLE_IMAGE_TAG}-previous"
-            docker tag "label-guardian-frontend:${STABLE_IMAGE_TAG}" "label-guardian-frontend:${STABLE_IMAGE_TAG}-previous"
           fi
 
       - name: Build candidate images
         run: |
           set -eu
-          docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml build backend frontend
+          docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml build backend
 
       - name: Apply backward-compatible database migrations
         run: |
@@ -64,12 +63,12 @@ jobs:
             IMAGE_TAG="$STABLE_IMAGE_TAG" docker compose --env-file "$SELFHOST_ENV_FILE" \
               -f docker-compose.selfhost.yml \
               --profile internet \
-              up -d --remove-orphans --no-build backend frontend proxy
+              up -d --remove-orphans --no-build backend proxy
           }
 
           if ! docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml \
             --profile internet \
-            up -d --remove-orphans backend frontend proxy; then
+            up -d --remove-orphans backend proxy; then
             rollback || true
             exit 1
           fi
@@ -77,7 +76,8 @@ jobs:
           healthy=0
           for attempt in $(seq 1 30); do
             if curl --fail --silent --max-time 10 "$APP_HEALTH_URL" >/dev/null && \
-               curl --fail --silent --max-time 10 "$APP_READY_URL" >/dev/null; then
+               curl --fail --silent --max-time 10 "$APP_READY_URL" >/dev/null && \
+               curl --fail --silent --max-time 10 "$APP_V1_HEALTH_URL" >/dev/null; then
               healthy=1
               break
             fi
@@ -90,5 +90,4 @@ jobs:
           fi
 
           docker tag "label-guardian-backend:${IMAGE_TAG}" "label-guardian-backend:${STABLE_IMAGE_TAG}"
-          docker tag "label-guardian-frontend:${IMAGE_TAG}" "label-guardian-frontend:${STABLE_IMAGE_TAG}"
           echo "Candidate ${IMAGE_TAG} promoted to ${STABLE_IMAGE_TAG}."

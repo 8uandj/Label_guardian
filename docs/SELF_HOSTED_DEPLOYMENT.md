@@ -59,16 +59,16 @@ Leave `LABEL_GUARDIAN_GCS_CREDENTIALS_PATH` and
 ## Deploy From CI/CD
 
 The workflow [.github/workflows/deploy-selfhost.yml](../.github/workflows/deploy-selfhost.yml)
-runs on pushes to `develop` and can also be started manually.
+runs on pushes to `main` and can also be started manually.
 
 It performs:
 
 1. Validate `/opt/label-guardian/.env.production`.
-2. Build backend and frontend Docker images locally.
+2. Build the backend Docker image locally.
 3. Run `alembic upgrade head` once.
-4. Start `backend` and `frontend` via
+4. Start `backend` and `proxy` via
    [docker-compose.selfhost.yml](../docker-compose.selfhost.yml).
-5. Check `/healthz` and `/ready` through the frontend Nginx proxy.
+5. Check `/health`, `/ready`, and `/api/v1/health` through the API proxy.
 
 ## Manual Deploy
 
@@ -80,9 +80,9 @@ export SELFHOST_DATA_DIR=/opt/label-guardian/data
 export IMAGE_TAG="$(git rev-parse --short HEAD)"
 
 docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml config --quiet
-docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml build backend frontend
+docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml build backend
 docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml --profile migrate run --rm backend-migrate
-docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml up -d --remove-orphans backend frontend
+docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml up -d --remove-orphans backend
 docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml ps
 ```
 
@@ -91,60 +91,56 @@ docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml ps
 For a real public deployment, point a DNS `A` record to the self-hosted server:
 
 ```text
-label-guardian.example.com -> <SERVER_PUBLIC_IP>
+api.labelguardian.space -> 34.143.247.68
 ```
 
 Open inbound TCP ports `80` and `443` on the server firewall/router. Then set:
 
 ```env
 APP_ENV=production
-PUBLIC_DOMAIN=label-guardian.example.com
+PUBLIC_DOMAIN=api.labelguardian.space
 ACME_EMAIL=admin@example.com
-CORS_ORIGINS=https://label-guardian.example.com
-FRONTEND_BIND_ADDRESS=127.0.0.1
-FRONTEND_PORT=8080
+CORS_ORIGINS=https://labelguardian.space,https://www.labelguardian.space
 ```
 
 For Supabase Auth, add the same URL in Supabase Dashboard:
 
 ```text
 Authentication -> URL Configuration
-Site URL: https://label-guardian.example.com
-Redirect URLs: https://label-guardian.example.com/**
+Site URL: https://labelguardian.space
+Redirect URLs:
+https://labelguardian.space
+https://www.labelguardian.space
+https://labelguardian.space/*
+https://www.labelguardian.space/*
 ```
 
 Deploy with the internet proxy profile:
 
 ```bash
 docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml --profile migrate run --rm backend-migrate
-docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml --profile internet up -d --remove-orphans backend frontend proxy
+docker compose --env-file "$SELFHOST_ENV_FILE" -f docker-compose.selfhost.yml --profile internet up -d --remove-orphans backend proxy
 ```
 
 Caddy obtains and renews Let's Encrypt certificates automatically. Check it with:
 
 ```bash
-curl -f https://label-guardian.example.com/healthz
-curl -f https://label-guardian.example.com/ready
-```
-
-Open:
-
-```bash
-curl -f http://127.0.0.1:${FRONTEND_PORT:-8080}/healthz
-curl -f http://127.0.0.1:${FRONTEND_PORT:-8080}/ready
+curl -f https://api.labelguardian.space/health
+curl -f https://api.labelguardian.space/ready
+curl -f https://api.labelguardian.space/api/v1/health
 ```
 
 ## Safe Deploy and Automatic Rollback
 
 Both the self-hosted workflow and `scripts/deploy_selfhost_vm.sh` build a unique
 candidate image without changing the running stable image. The candidate replaces
-the containers only after the build and migration steps succeed. `/healthz` and
-`/ready` must then pass before the candidate is promoted to `vm-public`.
+the containers only after the build and migration steps succeed. `/health`,
+`/ready`, and `/api/v1/health` must then pass before the candidate is promoted
+to `vm-api`.
 
-If container startup or either health check fails, Compose recreates backend and
-frontend from `vm-public`. The prior stable images are also retained under
-`vm-public-previous` for manual recovery. A failed image build does not touch the
-running containers.
+If container startup or any health check fails, Compose recreates backend from
+`vm-api`. The prior stable image is also retained under `vm-api-previous` for
+manual recovery. A failed image build does not touch the running containers.
 
 Database rollback is intentionally not automatic. Production migrations must use
 an expand/contract sequence and remain compatible with both the old and new app

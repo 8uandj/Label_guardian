@@ -1,15 +1,14 @@
 # Hybrid Deployment: Vercel Frontend + VM Backend
 
-This guide is the long-term deployment path for Label Guardian when the primary
-repository cannot be read by third-party platforms.
+This guide is the production deployment path for the public Label Guardian
+deploy repository.
 
 ## Target Architecture
 
 ```text
-Restricted source repo
-  -> mirrored deploy repo
-       -> Vercel deploys frontend/
-       -> GCP VM self-hosted runner deploys backend + Caddy API proxy
+github.com/8uandj/Label_guardian
+  -> Vercel deploys frontend/
+  -> GCP VM self-hosted runner deploys backend + Caddy API proxy
 ```
 
 Public domains:
@@ -26,48 +25,29 @@ variables.
 
 ## Quick Runbook
 
-Run these steps in order.
+Run these steps in order from the deploy repository:
 
-1. Create an empty deploy repository on GitHub, for example:
+```bash
+git remote -v
+git branch --show-current
+cd frontend
+npm ci
+npm run build
+cd ..
+git add -A
+git commit -m "configure hybrid Vercel frontend and VM backend deploy"
+git push origin main
+```
 
-   ```text
-   git@github.com:<ORG>/label-guardian-deploy.git
-   ```
-
-2. From the restricted source repo, publish the current worktree into a local
-   deploy mirror and push it:
-
-   ```bash
-   DEPLOY_REMOTE_URL=git@github.com:<ORG>/label-guardian-deploy.git \
-     scripts/publish_deploy_mirror.sh ../label-guardian-deploy
-   ```
-
-3. Enter the deploy mirror, apply hybrid production config, commit and push:
-
-   ```bash
-   cd ../label-guardian-deploy
-   scripts/configure_hybrid_deploy_repo.sh
-   git add -A
-   git commit -m "configure hybrid Vercel frontend and VM backend deploy"
-   git push
-   ```
-
-4. Connect the deploy repository to Vercel with root directory `frontend`.
-
-5. Install a GitHub self-hosted runner for the deploy repository on the VM.
+Connect `8uandj/Label_guardian` to Vercel with root directory `frontend`, then
+install a GitHub self-hosted runner for the same repository on the VM.
 
 After this, `push main` on the deploy repository deploys the frontend through
 Vercel and the backend through the VM runner.
 
-## 1. Create The Deploy Mirror
+## 1. Keep Secrets Out Of Git
 
-Create a new Git repository for deployment, for example:
-
-```text
-label-guardian-deploy
-```
-
-Mirror the full codebase into this repository, but never commit local secrets:
+Never commit local secrets or runtime data:
 
 ```text
 .env
@@ -76,14 +56,15 @@ Mirror the full codebase into this repository, but never commit local secrets:
 /frontend/node_modules
 /node_modules
 /.venv
+cache/
 ```
 
-Recommended workflow:
+Recommended workflow for production changes:
 
 ```text
-feature branch in restricted repo
-  -> reviewed merge
-  -> push/sync to deploy repo main
+feature branch or local fix
+  -> reviewed merge/commit
+  -> push to main in 8uandj/Label_guardian
   -> Vercel and VM runner deploy from main
 ```
 
@@ -202,20 +183,13 @@ On every push to `main`, the self-hosted workflow:
 - builds the backend candidate image;
 - applies Alembic migrations;
 - starts `backend` and `proxy` with Docker Compose;
-- verifies `https://api.labelguardian.space/health` and `/ready`;
-- promotes the candidate image to the stable `vm-public` tag.
+- verifies `https://api.labelguardian.space/health`, `/ready`, and `/api/v1/health`;
+- promotes the candidate image to the stable `vm-api` tag.
 
 Manual fallback from a local machine:
 
 ```bash
 scripts/deploy_selfhost_vm.sh origin/main
-```
-
-By default the script deploys API-only backend/proxy. To also build the legacy
-frontend container during transition:
-
-```bash
-DEPLOY_FRONTEND=1 scripts/deploy_selfhost_vm.sh origin/main
 ```
 
 ## 7. Supabase Auth Settings

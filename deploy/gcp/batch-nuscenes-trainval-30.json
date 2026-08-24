@@ -8,7 +8,7 @@
               "imageUri": "asia-southeast1-docker.pkg.dev/ai-lab-16-gcp-505508/label-guardian/label-guardian-ingestion-worker:latest",
               "commands": [
                 "--request-gcs-uri",
-                "gs://label_guardian_bucket/ops/ingestion-runs/nuscenes-trainval-full/request.json",
+                "gs://label_guardian_bucket/ops/ingestion-runs/nuscenes-trainval-30/request.json",
                 "--phase",
                 "all"
               ]
@@ -25,11 +25,11 @@
           }
         ],
         "computeResource": {
-          "cpuMilli": 16000,
-          "memoryMib": 65536
+          "cpuMilli": 8000,
+          "memoryMib": 32768
         },
         "maxRetryCount": 1,
-        "maxRunDuration": "86400s"
+        "maxRunDuration": "14400s"
       },
       "taskCount": 1,
       "parallelism": 1
@@ -43,10 +43,10 @@
     "instances": [
       {
         "policy": {
-          "machineType": "e2-standard-16",
+          "machineType": "e2-standard-8",
           "bootDisk": {
             "type": "pd-standard",
-            "sizeGb": 1000
+            "sizeGb": 200
           }
         }
       }

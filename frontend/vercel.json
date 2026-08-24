@@ -5,6 +5,22 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/v1/(.*)",
+      "destination": "https://api.labelguardian.space/api/v1/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "https://api.labelguardian.space/api/$1"
+    },
+    {
+      "source": "/health",
+      "destination": "https://api.labelguardian.space/health"
+    },
+    {
+      "source": "/ready",
+      "destination": "https://api.labelguardian.space/ready"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

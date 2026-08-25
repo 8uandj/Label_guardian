@@ -87,6 +87,7 @@ export function ApiQAQueueView({
     casesQuery.error instanceof Error ? casesQuery.error.message : "";
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ReviewStatus | "all">("all");
+  const [datasetFilter, setDatasetFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<FindingType | "all">("all");
   const [sequenceFilter, setSequenceFilter] = useState("all");
   const [frameFilter, setFrameFilter] = useState("");
@@ -105,12 +106,12 @@ export function ApiQAQueueView({
     () => [...new Set(cases.map((qaCase) => qaCase.className))].sort(),
     [cases],
   );
-  const datasetVersions = useMemo(
-    () => [
-      ...new Set(
-        cases.map((qaCase) => `${qaCase.datasetId} · ${qaCase.datasetVersion}`),
-      ),
-    ],
+  const datasetOptions = useMemo(
+    () =>
+      [...new Map(cases.map((qaCase) => [
+        qaCase.datasetId,
+        `${qaCase.datasetId} · ${qaCase.datasetVersion}`,
+      ])).entries()],
     [cases],
   );
 
@@ -130,6 +131,7 @@ export function ApiQAQueueView({
         .toLowerCase();
       return (
         (!normalizedQuery || searchable.includes(normalizedQuery)) &&
+        (datasetFilter === "all" || qaCase.datasetId === datasetFilter) &&
         (statusFilter === "all" || qaCase.status === statusFilter) &&
         (typeFilter === "all" || qaCase.errorType === typeFilter) &&
         (sequenceFilter === "all" || qaCase.sequenceId === sequenceFilter) &&
@@ -153,6 +155,7 @@ export function ApiQAQueueView({
   }, [
     cases,
     classFilter,
+    datasetFilter,
     frameFilter,
     minimumRisk,
     query,
@@ -172,6 +175,7 @@ export function ApiQAQueueView({
     setPage(1);
   }, [
     classFilter,
+    datasetFilter,
     frameFilter,
     minimumRisk,
     query,
@@ -277,6 +281,7 @@ export function ApiQAQueueView({
   );
   const clearFilters = useCallback(() => {
     setQuery("");
+    setDatasetFilter("all");
     setStatusFilter("all");
     setTypeFilter("all");
     setSequenceFilter("all");
@@ -379,14 +384,6 @@ export function ApiQAQueueView({
           />
           <kbd>/</kbd>
         </label>
-        <div className="queue-context-chips">
-          <Badge tone="success">FastAPI · Built-in Editor</Badge>
-          <Badge tone="info">{datasetVersions[0] ?? "dataset"}</Badge>
-          <Badge tone="neutral">QA Reviewer</Badge>
-          <span className="agent-safety-chip">
-            △ Agent chỉ đề xuất, không tự động sửa nhãn
-          </span>
-        </div>
       </div>
 
       {error ? (
@@ -451,10 +448,14 @@ export function ApiQAQueueView({
           <div className="queue-filter-stack">
             <label>
               <span>Dataset</span>
-              <select value="active" disabled>
-                <option value="active">
-                  {datasetVersions[0] ?? "Đang tải"}
-                </option>
+              <select
+                value={datasetFilter}
+                onChange={(event) => setDatasetFilter(event.target.value)}
+              >
+                <option value="all">Tất cả dataset</option>
+                {datasetOptions.map(([datasetId, label]) => (
+                  <option key={datasetId} value={datasetId}>{label}</option>
+                ))}
               </select>
             </label>
             <label>
@@ -527,15 +528,22 @@ export function ApiQAQueueView({
             </label>
             <label className="queue-risk-filter">
               <span>
-                Risk score <strong>{minimumRisk}</strong>
+                Risk score tối thiểu
               </span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={minimumRisk}
-                onChange={(event) => setMinimumRisk(Number(event.target.value))}
-              />
+              <div className="queue-risk-input">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  inputMode="numeric"
+                  value={minimumRisk}
+                  onChange={(event) =>
+                    setMinimumRisk(Math.min(100, Math.max(0, Number(event.target.value) || 0)))
+                  }
+                />
+                <span>/ 100</span>
+              </div>
             </label>
             <label>
               <span>Sắp xếp theo</span>

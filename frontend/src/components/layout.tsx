@@ -23,7 +23,7 @@ import { isApiDataSourceEnabled } from "../api/labelGuardianApi";
 import type { AppRouteDefinition } from "../config/informationArchitecture";
 import { roleLabels } from "../config/informationArchitecture";
 import authBackground from "../data/background.png";
-import type { Dataset, DemoMode, QaRun, Role, User } from "../domain/types";
+import type { Dataset, QaRun, Role, User } from "../domain/types";
 import { Badge, Button } from "./ui";
 
 export type PrimaryViewId =
@@ -75,8 +75,6 @@ interface AppShellProps extends PropsWithChildren {
   onDatasetChange: (datasetId: string) => void;
   onSignOut: () => void;
   onReset: () => void;
-  demoMode: DemoMode;
-  onDemoModeChange: (mode: DemoMode) => void;
 }
 
 export function AppShell({
@@ -93,8 +91,6 @@ export function AppShell({
   onDatasetChange,
   onSignOut,
   onReset,
-  demoMode,
-  onDemoModeChange,
   children,
 }: AppShellProps) {
   const [accountOpen, setAccountOpen] = useState(false);
@@ -224,13 +220,12 @@ export function AppShell({
         <aside className="sidebar">
           <div className="sidebar-brand">
             <div className="brand-mark"><ShieldCheck size={17} /></div>
-            <div>
+            <div className="sidebar-brand-copy">
               <div className="brand-name">Label Guardian</div>
               <div className="brand-subtitle">Human-in-the-loop QA</div>
             </div>
           </div>
 
-          <div className="sidebar-section-label">Workspace</div>
           <nav className="sidebar-nav" aria-label="Điều hướng chính">
             {visibleRoutes.map((route) => {
               const RouteIcon = routeIcons[route.id];
@@ -240,6 +235,7 @@ export function AppShell({
                   key={route.id}
                   type="button"
                   aria-label={route.label}
+                  title={route.label}
                   aria-current={activeView === route.id ? "page" : undefined}
                   onClick={() => onNavigate(route.id)}
                 >
@@ -254,24 +250,9 @@ export function AppShell({
           </nav>
 
           <div className="sidebar-spacer" />
-
-          <div className="sidebar-status-card">
-            <div className="status-card-heading">
-              <span className="status-dot" />
-              <span>{apiDataSourceEnabled ? "API V1 + Supabase Auth" : "Mock environment"}</span>
-            </div>
-            <p>{apiDataSourceEnabled ? "API connected · review actions are audited." : "Local workspace · no backend writes."}</p>
-            <span className="sidebar-version">
-              {apiDataSourceEnabled ? "Private GCS dataset" : `dataset · ${selectedDataset.version}`}
-            </span>
-          </div>
         </aside>
 
         <main className="workspace-main">
-          <div className="global-safety-banner" role="note">
-            <div className="qa-workflow-path"><span>Dataset</span><i /> <span>QA Run</span><i /> <span>Finding</span><i /> <span>Review</span><i /> <span>Fix</span></div>
-            <div className="global-safety-actions"><span>AI proposes · human decides</span>{!apiDataSourceEnabled ? <label className="demo-mode-control"><span>State</span><select aria-label="Trạng thái demo FE-25" value={demoMode} onChange={(event) => onDemoModeChange(event.target.value as DemoMode)}><option value="ready">Ready</option><option value="loading">Loading</option><option value="empty">Empty</option><option value="error">Error</option><option value="success">Success</option><option value="rejected">Rejected</option></select></label> : null}</div>
-          </div>
           {children}
         </main>
       </div>

@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { isApiDataSourceEnabled } from "../api/labelGuardianApi";
 import { useQaCasesQuery, useRealDatasetFrameSamplesQuery } from "../api/queries";
 import { Badge, Button, Card, SectionHeading, StatusBadge } from "../components/ui";
+import { ApiDemoNotice } from "../components/ApiDemoNotice";
 import { cloudDatasets } from "../config/cloudDataset";
 import type { FindingType, MockState, Severity } from "../domain/types";
 
@@ -67,6 +68,13 @@ export function OverviewView({
           <div><span className="eyebrow">QA Control Center</span><h1>Tổng quan QA dataset thật</h1><p className="page-description">Theo dõi metadata Supabase, ảnh từ dataset/official và QA cases được Agent persist.</p></div>
           <div className="page-heading-actions"><Badge tone={apiCasesQuery.isError || apiSamplesQuery.isError ? "high" : "success"}>{loading ? "Đang tải API" : "API dataset online"}</Badge><Button variant="primary" onClick={onOpenQueue}>Mở QA Queue</Button></div>
         </div>
+
+        <ApiDemoNotice
+          loading={loading}
+          hasData={Boolean(apiCases.length || apiSamples?.count || apiSamples?.imageCount)}
+          hasError={apiCasesQuery.isError || apiSamplesQuery.isError}
+          description="Trang tổng quan mẫu vẫn được hiển thị để demo bố cục. Các KPI và biểu đồ sẽ tự cập nhật khi backend có dataset hoặc QA cases."
+        />
 
         <section className="qa-dataset-bar">
           <div className="qa-dataset-identity"><span><Database size={17} /></span><div><small>Active dataset</small><strong>{apiDataset === "nuscenes" ? "nuScenes official" : "KITTI official"}</strong></div></div>
@@ -144,7 +152,7 @@ export function OverviewView({
 
       <section className="qa-dataset-bar">
         <div className="qa-dataset-identity"><span><Database size={17} /></span><div><small>Active dataset</small><strong>{dataset?.name}</strong></div></div>
-        <div><small>Version</small><strong>{dataset?.version.replace("dvc://", "")}</strong></div>
+        <div><small>Version</small><strong>{dataset?.version}</strong></div>
         <div><small>Format</small><strong>{dataset?.format} · 2D</strong></div>
         <div><small>Frames</small><strong>{dataset?.frameCount}</strong></div>
         <div><small>Last QA run</small><strong>{state.qaRun.id}</strong></div>

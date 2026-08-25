@@ -97,9 +97,7 @@ function App() {
     );
     setSignedInUser(matchingUser ?? null);
     setMockSignedIn(true);
-    if (activeView === "overview") {
-      navigateToView("overview");
-    }
+    navigateToView("overview");
   };
 
   const handleRegister = (profile: Pick<User, "name" | "email" | "role">) => {
@@ -117,9 +115,7 @@ function App() {
     actions.setRole(profile.role);
     setSignedInUser(registeredUser);
     setMockSignedIn(true);
-    if (activeView === "overview") {
-      navigateToView("overview");
-    }
+    navigateToView("overview");
   };
 
   if (auth.enabled && !auth.user) {
@@ -127,8 +123,19 @@ function App() {
       <AuthenticatedLoginScreen
         loading={auth.loading}
         configurationError={auth.error}
-        onSignIn={auth.signIn}
-        onRegister={auth.signUp}
+        onSignIn={async (email, password) => {
+          await auth.signIn(email, password);
+          routerNavigate(pathForDatasetView("overview", cloudDatasetId), {
+            replace: true,
+          });
+        }}
+        onRegister={async (name, email, password) => {
+          const message = await auth.signUp(name, email, password);
+          routerNavigate(pathForDatasetView("overview", cloudDatasetId), {
+            replace: true,
+          });
+          return message;
+        }}
       />
     );
   }
@@ -190,8 +197,6 @@ function App() {
         }
       }}
       onReset={actions.reset}
-      demoMode={demoMode}
-      onDemoModeChange={setDemoMode}
     >
       <DemoStateBoundary
         mode={demoMode}
@@ -202,9 +207,7 @@ function App() {
           <Route
             path="/"
             element={
-              apiDataSourceEnabled ? (
-                <Navigate to={activeUser.role === "annotator" ? "/qa-cases" : "/qa-queue"} replace />
-              ) : <OverviewView
+              <OverviewView
                 state={state}
                 onOpenQueue={() => navigateToView("qa-queue")}
                 onOpenFinding={navigateToCase}
@@ -216,8 +219,8 @@ function App() {
           <Route path="/qa-cases" element={<QACasesView onOpenFinding={navigateToCase} onOpenEditor={navigateToEditor} />} />
           <Route path="/real-data" element={<Navigate to="/qa-queue?source=dataset&split=val" replace />} />
           <Route path="/cases/:findingId" element={apiDataSourceEnabled ? <Navigate to="/qa-cases" replace /> : <CaseDetailRoute onBack={() => navigateToView("qa-queue")} onEditLabels={() => navigateToEditor()} />} />
-          <Route path="/reports" element={apiDataSourceEnabled ? <Navigate to="/qa-queue" replace /> : <ReportsView state={state} />} />
-          <Route path="/dataset-runs" element={apiDataSourceEnabled ? <Navigate to="/qa-queue" replace /> : <DatasetRunView />} />
+          <Route path="/reports" element={<ReportsView state={state} />} />
+          <Route path="/dataset-runs" element={<DatasetRunView />} />
           <Route path="/pipeline" element={<PipelineView />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="*" element={<Navigate to="/" replace />} />

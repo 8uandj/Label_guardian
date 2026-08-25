@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { Badge, Button } from "../../../components/ui";
 import type { Finding, MockState } from "../../../domain/types";
 
@@ -33,10 +40,20 @@ export function MockQueueComparisonViewer({
   const [zoom, setZoom] = useState(100);
   const [frameId, setFrameId] = useState(finding?.frameId ?? "");
   const [fps, setFps] = useState("10");
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragOriginRef = useRef<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    panX: number;
+    panY: number;
+  } | null>(null);
 
   useEffect(() => {
     setFrameId(finding?.frameId ?? "");
     setZoom(100);
+    setPan({ x: 0, y: 0 });
   }, [finding?.frameId, finding?.id]);
 
   const sceneFrames = useMemo(
@@ -73,6 +90,37 @@ export function MockQueueComparisonViewer({
     const nextFrame = sceneFrames[nextIndex];
     if (nextFrame) {
       setFrameId(nextFrame.id);
+      setPan({ x: 0, y: 0 });
+    }
+  };
+
+  const startPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || tool === "measure") return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragOriginRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    };
+    setIsDragging(true);
+  };
+  const movePan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const origin = dragOriginRef.current;
+    if (!origin || origin.pointerId !== event.pointerId) return;
+    setPan({
+      x: origin.panX + event.clientX - origin.clientX,
+      y: origin.panY + event.clientY - origin.clientY,
+    });
+  };
+  const stopPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragOriginRef.current?.pointerId !== event.pointerId) return;
+    dragOriginRef.current = null;
+    setIsDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };
 
@@ -92,7 +140,14 @@ export function MockQueueComparisonViewer({
           <button className={tool === "pan" ? "is-active" : ""} type="button" onClick={() => setTool("pan")} aria-label="Di chuyển khung nhìn">✥</button>
           <button className={tool === "measure" ? "is-active" : ""} type="button" onClick={() => setTool("measure")} aria-label="Đo khoảng cách">⌁</button>
           <span className="viewer-readonly-divider" />
-          <Button size="sm" variant="ghost" onClick={() => setZoom(100)}>Vừa khung</Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setZoom(100);
+              setPan({ x: 0, y: 0 });
+            }}
+          >Vừa khung</Button>
         </div>
 
         <div className="viewer-compare-controls">
@@ -108,12 +163,21 @@ export function MockQueueComparisonViewer({
         </div>
       </div>
 
-      <div className={`queue-viewer-stage tool-${tool}`}>
+      <div
+        className={`queue-viewer-stage tool-${tool} ${isDragging ? "is-dragging" : ""}`}
+        aria-label="Kéo chuột để di chuyển ảnh"
+        onPointerDown={startPan}
+        onPointerMove={movePan}
+        onPointerUp={stopPan}
+        onPointerCancel={stopPan}
+        onLostPointerCapture={stopPan}
+      >
         <div
           className="queue-viewer-canvas"
           style={{
             aspectRatio: `${frame.width} / ${frame.height}`,
-            transform: `scale(${zoom / 100})`,
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom / 100})`,
+            transformOrigin: "center",
           }}
         >
           <img src={frame.thumbnailUrl} alt={`Frame ${frame.frameNumber} dùng để so sánh nhãn`} />
@@ -173,7 +237,10 @@ export function MockQueueComparisonViewer({
           value={frameIndex}
           onChange={(event) => {
             const nextFrame = sceneFrames[Number(event.target.value)];
-            if (nextFrame) setFrameId(nextFrame.id);
+            if (nextFrame) {
+              setFrameId(nextFrame.id);
+              setPan({ x: 0, y: 0 });
+            }
           }}
           aria-label="Chọn frame trong sequence"
         />

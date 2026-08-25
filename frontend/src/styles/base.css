@@ -27,6 +27,28 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #34445c #0b111a;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #0b111a;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid #0b111a;
+  border-radius: 999px;
+  background: #34445c;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #465b79;
 }
 
 body {

@@ -2,6 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import { isApiDataSourceEnabled } from "../api/labelGuardianApi";
 import { useQaCasesQuery, useRealDatasetFrameSamplesQuery } from "../api/queries";
 import { Badge, Button, Card, SectionHeading, StatCard } from "../components/ui";
+import { ApiDemoNotice } from "../components/ApiDemoNotice";
 import { cloudDatasets } from "../config/cloudDataset";
 import { useMockData } from "../state/MockDataProvider";
 
@@ -47,6 +48,13 @@ export function DatasetRunView() {
             <Badge tone="info">{apiDataset} · {activeSplit}</Badge>
           </div>
         </div>
+
+        <ApiDemoNotice
+          loading={apiSamplesQuery.isPending || apiCasesQuery.isPending}
+          hasData={Boolean(apiSamples?.count || apiSamples?.imageCount || apiCases.length)}
+          hasError={apiSamplesQuery.isError || apiCasesQuery.isError}
+          description="Trang Datasets / Runs mẫu vẫn được giữ để demo trạng thái vận hành. Thông tin split, frame và QA run sẽ xuất hiện khi backend trả dữ liệu."
+        />
 
         <Card className="privacy-safe-card">
           <div className="privacy-safe-icon">✓</div>

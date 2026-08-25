@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
-  History,
   Hand,
   MousePointer2,
   Move,
@@ -24,16 +23,15 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  useAnnotationHistoryQuery,
   useImageAnnotationsQuery,
   useQaCasesQuery,
   useRealDatasetFrameSamplesQuery,
-  useRestoreAnnotationsMutation,
   useSaveAnnotationsMutation,
 } from "../api/queries";
 import type {
@@ -48,6 +46,7 @@ import {
 } from "../components/AuthenticatedImage";
 import "../styles/label-editor.css";
 import { boxIntersectsImage } from "../utils/realDataset";
+import { classColorForLabel } from "../utils/labelColor";
 
 type EditorTool = "select" | "move" | "box" | "zoom" | "pan";
 type ResizeHandle = "nw" | "ne" | "sw" | "se";
@@ -72,15 +71,6 @@ interface GestureState {
   originalPan?: { x: number; y: number };
 }
 
-const labelColors: Record<string, string> = {
-  car: "#5b8cff",
-  van: "#9c7cff",
-  truck: "#ffad5b",
-  pedestrian: "#45d7a8",
-  cyclist: "#f36fa0",
-  bicycle: "#f4d35e",
-  "vehicle.car": "#5b8cff",
-};
 const defaultLabels = [
   "car",
   "van",
@@ -124,7 +114,7 @@ function fromLabels(labels: RealDatasetLabelDto[]): EditableObject[] {
       height: item.bbox.y2 - item.bbox.y1,
     },
     attributes: { ...(item.attributes ?? {}) },
-    color: labelColors[item.className] ?? "#5b8cff",
+    color: classColorForLabel(item.className),
     visible: true,
   }));
 }
@@ -186,16 +176,11 @@ export function AnnotatorWorkspaceView({
     split,
     selectedImageId || undefined,
   );
-  const historyQuery = useAnnotationHistoryQuery(
-    split,
-    selectedImageId || undefined,
-  );
   const suggestionsQuery = useQaCasesQuery(
     { split, sourceImageId: selectedImageId || undefined },
     Boolean(selectedImageId),
   );
   const saveMutation = useSaveAnnotationsMutation();
-  const restoreMutation = useRestoreAnnotationsMutation();
   const document = annotationQuery.data;
   const frame: RealDatasetImageDto | undefined =
     document?.image ?? frames.find((item) => item.id === selectedImageId);
@@ -204,7 +189,6 @@ export function AnnotatorWorkspaceView({
   const [objects, setObjects] = useState<EditableObject[]>([]);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<EditorTool>("select");
-  const [mode, setMode] = useState<"review" | "edit">("edit");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [past, setPast] = useState<EditableObject[][]>([]);
@@ -212,12 +196,6 @@ export function AnnotatorWorkspaceView({
   const [dirty, setDirty] = useState(false);
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
-  const [activeTab, setActiveTab] = useState<"validation" | "history">(
-    "validation",
-  );
-  const [agentHighlightedObjectId, setAgentHighlightedObjectId] = useState<
-    string | null
-  >(null);
   const [agentHighlightedSuggestionId, setAgentHighlightedSuggestionId] =
     useState<string | null>(null);
   const [agentHighlightedPrediction, setAgentHighlightedPrediction] =
@@ -277,6 +255,26 @@ export function AnnotatorWorkspaceView({
       ),
     [agentSuggestions, canvasHeight, canvasWidth, inImageObjectIds],
   );
+  const synchronizedSuggestionId = useMemo(
+    () =>
+      agentHighlightedSuggestionId ??
+      displayedAgentSuggestions.find(
+        (suggestion) =>
+          Boolean(selectedObjectId) &&
+          suggestion.targetTrackId === selectedObjectId,
+      )?.id ??
+      null,
+    [
+      agentHighlightedSuggestionId,
+      displayedAgentSuggestions,
+      selectedObjectId,
+    ],
+  );
+  const selectObject = useCallback((objectId: string | null) => {
+    setSelectedObjectId(objectId);
+    setAgentHighlightedSuggestionId(null);
+    setAgentHighlightedPrediction(null);
+  }, []);
   const labelOptions = useMemo(
     () =>
       [
@@ -323,7 +321,6 @@ export function AnnotatorWorkspaceView({
         ),
       )?.id ?? null,
     );
-    setAgentHighlightedObjectId(null);
     setAgentHighlightedSuggestionId(null);
     setAgentHighlightedPrediction(null);
     setImageDimensions({
@@ -449,10 +446,10 @@ export function AnnotatorWorkspaceView({
   );
 
   const deleteSelected = useCallback(() => {
-    if (!selectedObject || mode === "review") return;
+    if (!selectedObject) return;
     commit(objects.filter((item) => item.id !== selectedObject.id));
-    setSelectedObjectId(null);
-  }, [commit, mode, objects, selectedObject]);
+    selectObject(null);
+  }, [commit, objects, selectObject, selectedObject]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -528,14 +525,43 @@ export function AnnotatorWorkspaceView({
       : raw;
   };
 
-  const stagePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (event.button !== 0 || mode === "review") return;
-    const point = getPoint(event);
+  const zoomAtPoint = (
+    nextZoom: number,
+    anchor: { x: number; y: number },
+  ) => {
+    const boundedZoom = clamp(nextZoom, 0.5, 5);
+    if (boundedZoom === zoom) return;
+    setPan((current) => ({
+      x: anchor.x - ((anchor.x - current.x) / zoom) * boundedZoom,
+      y: anchor.y - ((anchor.y - current.y) / zoom) * boundedZoom,
+    }));
+    setZoom(boundedZoom);
+  };
+
+  const zoomAtCenter = (nextZoom: number) =>
+    zoomAtPoint(nextZoom, { x: canvasWidth / 2, y: canvasHeight / 2 });
+
+  const startPan = (event: ReactPointerEvent<SVGElement>) => {
+    event.preventDefault();
     svgRef.current?.setPointerCapture(event.pointerId);
-    setAgentHighlightedObjectId(null);
+    gestureRef.current = {
+      type: "pan",
+      start: getPoint(event, false),
+      originalObjects: [],
+      originalPan: { ...pan },
+    };
+  };
+
+  const stagePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const shouldPan = activeTool === "pan" || event.button === 2;
+    if (!shouldPan && event.button !== 0) return;
+    const point = getPoint(event);
     setAgentHighlightedSuggestionId(null);
     setAgentHighlightedPrediction(null);
-    if (activeTool === "box") {
+    if (shouldPan) {
+      startPan(event);
+    } else if (activeTool === "box") {
+      svgRef.current?.setPointerCapture(event.pointerId);
       const id = `annotation-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
       const next: EditableObject = {
         id,
@@ -543,7 +569,7 @@ export function AnnotatorWorkspaceView({
         trackId: "",
         bbox: { x: point.x, y: point.y, width: 1, height: 1 },
         attributes: {},
-        color: labelColors[labelOptions[0]] ?? "#5b8cff",
+        color: classColorForLabel(labelOptions[0] ?? "car"),
         visible: true,
       };
       gestureRef.current = {
@@ -553,17 +579,15 @@ export function AnnotatorWorkspaceView({
         originalObjects: cloneObjects(objects),
       };
       setObjects([...objects, next]);
-      setSelectedObjectId(id);
-    } else if (activeTool === "pan") {
-      gestureRef.current = {
-        type: "pan",
-        start: getPoint(event, false),
-        originalObjects: [],
-        originalPan: { ...pan },
-      };
-    } else if (activeTool === "zoom")
-      setZoom((value) => clamp(value + 0.2, 0.5, 3));
-    else setSelectedObjectId(null);
+      selectObject(id);
+    } else if (activeTool === "zoom") {
+      zoomAtPoint(
+        zoom + (event.shiftKey ? -0.25 : 0.25),
+        getPoint(event, false),
+      );
+    } else {
+      selectObject(null);
+    }
   };
 
   const objectPointerDown = (
@@ -571,11 +595,12 @@ export function AnnotatorWorkspaceView({
     object: EditableObject,
   ) => {
     event.stopPropagation();
-    setSelectedObjectId(object.id);
-    setAgentHighlightedObjectId(null);
-    setAgentHighlightedSuggestionId(null);
-    setAgentHighlightedPrediction(null);
-    if (mode === "review" || !["select", "move"].includes(activeTool)) return;
+    if (event.button === 2 || activeTool === "pan") {
+      startPan(event);
+      return;
+    }
+    selectObject(object.id);
+    if (!["select", "move"].includes(activeTool)) return;
     svgRef.current?.setPointerCapture(event.pointerId);
     gestureRef.current = {
       type: "move",
@@ -590,7 +615,7 @@ export function AnnotatorWorkspaceView({
     event: ReactPointerEvent<SVGCircleElement>,
     handle: ResizeHandle,
   ) => {
-    if (!selectedObject || mode === "review") return;
+    if (!selectedObject) return;
     event.stopPropagation();
     svgRef.current?.setPointerCapture(event.pointerId);
     gestureRef.current = {
@@ -679,7 +704,7 @@ export function AnnotatorWorkspaceView({
           : undefined;
       if (created && (created.bbox.width < 8 || created.bbox.height < 8)) {
         setObjects(gesture.originalObjects);
-        setSelectedObjectId(null);
+        selectObject(null);
       } else {
         setPast((history) => [...history, gesture.originalObjects].slice(-50));
         setFuture([]);
@@ -690,7 +715,7 @@ export function AnnotatorWorkspaceView({
   };
 
   const updateSelected = (changes: Partial<EditableObject>) => {
-    if (!selectedObject || mode === "review") return;
+    if (!selectedObject) return;
     commit(
       objects.map((item) =>
         item.id === selectedObject.id ? { ...item, ...changes } : item,
@@ -742,22 +767,6 @@ export function AnnotatorWorkspaceView({
           <span>{split}</span>
           <ChevronRight size={14} />
           <strong>{frame.cameraChannel ?? frame.id}</strong>
-        </div>
-        <div className="editor-mode-switch">
-          <button
-            className={mode === "review" ? "is-active" : ""}
-            type="button"
-            onClick={() => setMode("review")}
-          >
-            Review
-          </button>
-          <button
-            className={mode === "edit" ? "is-active" : ""}
-            type="button"
-            onClick={() => setMode("edit")}
-          >
-            Edit Labels
-          </button>
         </div>
         <div className="editor-top-actions">
           <button type="button" onClick={undo} disabled={!past.length}>
@@ -823,7 +832,7 @@ export function AnnotatorWorkspaceView({
         <aside className="editor-left-sidebar">
           <div className="editor-sidebar-heading">
             <span>Tools</span>
-            <small>{mode} mode</small>
+            <small>Edit labels</small>
           </div>
           <div className="editor-tool-list">
             {tools.map((tool) => {
@@ -833,10 +842,6 @@ export function AnnotatorWorkspaceView({
                   className={activeTool === tool.id ? "is-active" : ""}
                   key={tool.id}
                   type="button"
-                  disabled={
-                    mode === "review" &&
-                    !["select", "zoom", "pan"].includes(tool.id)
-                  }
                   onClick={() => setActiveTool(tool.id)}
                 >
                   <Icon size={17} />
@@ -848,7 +853,7 @@ export function AnnotatorWorkspaceView({
             <button
               className="is-danger"
               type="button"
-              disabled={mode === "review" || !selectedObject}
+              disabled={!selectedObject}
               onClick={deleteSelected}
             >
               <Trash2 size={17} />
@@ -865,15 +870,11 @@ export function AnnotatorWorkspaceView({
           <div className="editor-object-list">
             {inImageObjects.map((object, index) => (
               <button
-                className={`${selectedObjectId === object.id ? "is-selected" : ""} ${agentHighlightedObjectId === object.id ? "is-agent-highlighted" : ""}`}
+                className={selectedObjectId === object.id ? "is-selected" : ""}
                 key={object.id}
                 type="button"
-                onClick={() => {
-                  setSelectedObjectId(object.id);
-                  setAgentHighlightedObjectId(null);
-                  setAgentHighlightedSuggestionId(null);
-                  setAgentHighlightedPrediction(null);
-                }}
+                aria-pressed={selectedObjectId === object.id}
+                onClick={() => selectObject(object.id)}
               >
                 <span
                   className="object-color"
@@ -925,18 +926,43 @@ export function AnnotatorWorkspaceView({
                 {displayedObjects.length}/{objects.length} objects displayed
               </span>
               <span>rev {document.revision}</span>
+              <span
+                className={`editor-validation-status ${validationMessages.length ? "is-error" : "is-ok"}`}
+                title={validationMessages.join("\n") || "Tất cả bounding box hợp lệ"}
+              >
+                {validationMessages.length
+                  ? `Validation · ${validationMessages.length} lỗi`
+                  : "Validation · OK"}
+              </span>
             </div>
-            <div>
+            <div className="editor-zoom-controls">
               <button
                 type="button"
-                onClick={() => setZoom((value) => clamp(value - 0.1, 0.5, 3))}
+                aria-label="Thu nhỏ"
+                onClick={() => zoomAtCenter(zoom - 0.25)}
               >
                 −
               </button>
+              <input
+                className="editor-zoom-slider"
+                type="range"
+                min="50"
+                max="500"
+                step="10"
+                value={Math.round(zoom * 100)}
+                aria-label="Mức zoom"
+                style={{
+                  "--slider-progress": `${((zoom - 0.5) / 4.5) * 100}%`,
+                } as CSSProperties}
+                onChange={(event) =>
+                  zoomAtCenter(Number(event.target.value) / 100)
+                }
+              />
               <strong>{Math.round(zoom * 100)}%</strong>
               <button
                 type="button"
-                onClick={() => setZoom((value) => clamp(value + 0.1, 0.5, 3))}
+                aria-label="Phóng to"
+                onClick={() => zoomAtCenter(zoom + 0.25)}
               >
                 +
               </button>
@@ -962,10 +988,18 @@ export function AnnotatorWorkspaceView({
               onPointerMove={pointerMove}
               onPointerUp={commitGesture}
               onPointerCancel={commitGesture}
+              onContextMenu={(event) => event.preventDefault()}
               onWheel={(event: ReactWheelEvent<SVGSVGElement>) => {
                 event.preventDefault();
-                setZoom((value) =>
-                  clamp(value + (event.deltaY < 0 ? 0.1 : -0.1), 0.5, 3),
+                const matrix = svgRef.current?.getScreenCTM();
+                if (!matrix || !svgRef.current) return;
+                const point = svgRef.current.createSVGPoint();
+                point.x = event.clientX;
+                point.y = event.clientY;
+                const anchor = point.matrixTransform(matrix.inverse());
+                zoomAtPoint(
+                  zoom + (event.deltaY < 0 ? 0.2 : -0.2),
+                  anchor,
                 );
               }}
               aria-label={`2D annotation canvas for ${frame.filename}`}
@@ -991,8 +1025,6 @@ export function AnnotatorWorkspaceView({
                 ) : null}
                 {displayedObjects.map((object) => {
                   const selected = object.id === selectedObjectId;
-                  const agentHighlighted =
-                    object.id === agentHighlightedObjectId;
                   const { x, y, width, height } = object.bbox;
                   const handles: Array<[ResizeHandle, number, number]> = [
                     ["nw", x, y],
@@ -1002,7 +1034,7 @@ export function AnnotatorWorkspaceView({
                   ];
                   return (
                     <g
-                      className={`editor-box ${selected ? "is-selected" : ""} ${agentHighlighted ? "is-agent-highlighted" : ""}`}
+                      className={`editor-box ${selected ? "is-selected" : ""}`}
                       key={object.id}
                       style={{ color: object.color }}
                     >
@@ -1034,7 +1066,7 @@ export function AnnotatorWorkspaceView({
                           {String(objects.indexOf(object) + 1).padStart(2, "0")}
                         </text>
                       </g>
-                      {selected && mode === "edit"
+                      {selected
                         ? handles.map(([handle, hx, hy]) => (
                             <circle
                               className={`resize-handle handle-${handle}`}
@@ -1061,123 +1093,13 @@ export function AnnotatorWorkspaceView({
               </div>
             ) : null}
             <div className="editor-canvas-hint">
-              {mode === "review"
-                  ? "Review mode · geometry locked"
-                  : activeTool === "box"
-                    ? "Kéo trên ảnh để tạo bounding box"
-                    : "Chọn box để kéo hoặc resize"}
-            </div>
-          </div>
-          <div className="editor-detail-tabs">
-            <div className="editor-tab-list">
-              <button
-                className={activeTab === "validation" ? "is-active" : ""}
-                type="button"
-                onClick={() => setActiveTab("validation")}
-              >
-                <ShieldAlert size={14} />
-                Validation<span>{validationMessages.length}</span>
-              </button>
-              <button
-                className={activeTab === "history" ? "is-active" : ""}
-                type="button"
-                onClick={() => setActiveTab("history")}
-              >
-                <History size={14} />
-                Revision history<span>{historyQuery.data?.count ?? 0}</span>
-              </button>
-            </div>
-            <div className="editor-tab-content">
-              {activeTab === "validation" ? (
-                validationMessages.length ? (
-                  <div className="editor-validation-list">
-                    {validationMessages.map((item) => (
-                      <button type="button" key={item}>
-                        <ShieldAlert size={14} />
-                        <span>
-                          <strong>Invalid annotation</strong>
-                          {item}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="editor-validation-ok">
-                    <span>✓</span>
-                    <div>
-                      <strong>Frame validation passed</strong>
-                      <small>Tất cả bounding box có cấu trúc hợp lệ.</small>
-                    </div>
-                  </div>
-                )
-              ) : (
-                <div className="editor-activity-list">
-                  <div>
-                    <span />
-                    <p>Revision 0 · Original imported labels</p>
-                    <small>
-                      <button
-                        type="button"
-                        disabled={
-                          restoreMutation.isPending || document.revision === 0
-                        }
-                        onClick={() =>
-                          void restoreMutation
-                            .mutateAsync({
-                              split,
-                              imageId: frame.id,
-                              expectedRevision: document.revision,
-                              targetRevision: 0,
-                              actorId,
-                            })
-                            .then((result) => {
-                              loadedKey.current = "";
-                              setMessage(
-                                `Đã khôi phục thành revision ${result.revision}.`,
-                              );
-                            })
-                        }
-                      >
-                        Restore
-                      </button>
-                    </small>
-                  </div>
-                  {historyQuery.data?.results.map((item) => (
-                    <div key={item.revision}>
-                      <span />
-                      <p>
-                        Revision {item.revision} · {item.labelCount} labels
-                      </p>
-                      <small>
-                        {item.actorId ?? "unknown"} ·{" "}
-                        {item.changeNote ?? "No note"}{" "}
-                        <button
-                          type="button"
-                          disabled={
-                            restoreMutation.isPending ||
-                            item.revision === document.revision
-                          }
-                          onClick={() =>
-                            void restoreMutation
-                              .mutateAsync({
-                                split,
-                                imageId: frame.id,
-                                expectedRevision: document.revision,
-                                targetRevision: item.revision,
-                                actorId,
-                              })
-                              .then(() => {
-                                loadedKey.current = "";
-                              })
-                          }
-                        >
-                          Restore
-                        </button>
-                      </small>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {activeTool === "box"
+                ? "Kéo trên ảnh để tạo bounding box"
+                : activeTool === "pan"
+                  ? "Kéo để di chuyển ảnh · lăn chuột để zoom"
+                  : activeTool === "zoom"
+                    ? "Click để zoom · Shift + click để thu nhỏ · chuột phải để pan"
+                    : "Chọn box để kéo hoặc resize · lăn chuột để zoom · chuột phải để pan"}
             </div>
           </div>
         </section>
@@ -1189,7 +1111,7 @@ export function AnnotatorWorkspaceView({
               <small>{selectedObject?.id ?? "No selection"}</small>
             </div>
             {selectedObject ? (
-              <button type="button" onClick={() => setSelectedObjectId(null)}>
+              <button type="button" onClick={() => selectObject(null)}>
                 <X size={15} />
               </button>
             ) : null}
@@ -1216,12 +1138,13 @@ export function AnnotatorWorkspaceView({
                   {displayedAgentSuggestions.map((suggestion) => (
                     <button
                       className={
-                        suggestion.id === agentHighlightedSuggestionId
+                        suggestion.id === synchronizedSuggestionId
                           ? "is-selected"
                           : ""
                       }
                       type="button"
                       key={suggestion.id}
+                      aria-pressed={suggestion.id === synchronizedSuggestionId}
                       onClick={() => {
                         const prediction = predictionForSuggestion(suggestion);
                         setAgentHighlightedSuggestionId(suggestion.id);
@@ -1229,7 +1152,6 @@ export function AnnotatorWorkspaceView({
                           suggestion.targetTrackId ? null : prediction,
                         );
                         setSelectedObjectId(suggestion.targetTrackId);
-                        setAgentHighlightedObjectId(suggestion.targetTrackId);
                         if (suggestion.targetTrackId) {
                           setObjects((current) =>
                             current.map((item) =>
@@ -1277,13 +1199,10 @@ export function AnnotatorWorkspaceView({
                   <span>Label</span>
                   <select
                     value={selectedObject.label}
-                    disabled={mode === "review"}
                     onChange={(event) =>
                       updateSelected({
                         label: event.target.value,
-                        color:
-                          labelColors[event.target.value] ??
-                          selectedObject.color,
+                        color: classColorForLabel(event.target.value),
                       })
                     }
                   >
@@ -1296,7 +1215,6 @@ export function AnnotatorWorkspaceView({
                   <span>Track ID</span>
                   <input
                     value={selectedObject.trackId ?? ""}
-                    disabled={mode === "review"}
                     onChange={(event) =>
                       updateSelected({ trackId: event.target.value })
                     }
@@ -1307,7 +1225,6 @@ export function AnnotatorWorkspaceView({
                   <input
                     type="color"
                     value={selectedObject.color}
-                    disabled={mode === "review"}
                     onChange={(event) =>
                       updateSelected({ color: event.target.value })
                     }
@@ -1323,7 +1240,6 @@ export function AnnotatorWorkspaceView({
                       <input
                         type="number"
                         value={Math.round(selectedObject.bbox[field])}
-                        disabled={mode === "review"}
                         onChange={(event) =>
                           updateCoordinate(field, Number(event.target.value))
                         }
@@ -1341,7 +1257,6 @@ export function AnnotatorWorkspaceView({
                   <input
                     type="checkbox"
                     checked={Boolean(selectedObject.attributes.occluded)}
-                    disabled={mode === "review"}
                     onChange={(event) =>
                       updateSelected({
                         attributes: {
@@ -1359,7 +1274,6 @@ export function AnnotatorWorkspaceView({
                   <input
                     type="checkbox"
                     checked={Boolean(selectedObject.attributes.truncated)}
-                    disabled={mode === "review"}
                     onChange={(event) =>
                       updateSelected({
                         attributes: {
@@ -1371,7 +1285,7 @@ export function AnnotatorWorkspaceView({
                   />
                 </label>
               </section>
-              <section>
+              <section className="editor-save-note-section">
                 <h3>Save note</h3>
                 <textarea
                   value={note}
@@ -1422,27 +1336,37 @@ export function AnnotatorWorkspaceView({
           </button>
         </div>
         <div className="editor-frame-strip">
-          {frames.map((item, index) => (
-            <button
-              className={item.id === frame.id ? "is-active" : ""}
-              type="button"
-              key={item.id}
-              onClick={() => switchFrame(item)}
-            >
-              <span className="frame-thumb">
-                <AuthenticatedImage
-                  sourcePath={item.imageUrl}
-                  alt=""
-                />
-                {dirty && item.id === frame.id ? <i /> : null}
-              </span>
-              <small>{item.cameraChannel ?? index + 1}</small>
-            </button>
+          {(samplesQuery.data?.results ?? []).map((sample, sampleIndex) => (
+            <section className="editor-frame-group" key={sample.id}>
+              <header>
+                <strong>Frame {String(sampleIndex + 1).padStart(2, "0")}</strong>
+                <small>{sample.sequenceId}</small>
+              </header>
+              <div className="editor-camera-strip">
+                {sample.cameras.map((item, cameraIndex) => (
+                  <button
+                    className={item.id === frame.id ? "is-active" : ""}
+                    type="button"
+                    key={item.id}
+                    onClick={() => switchFrame(item)}
+                  >
+                    <span className="frame-thumb">
+                      <AuthenticatedImage sourcePath={item.imageUrl} alt="" />
+                      {dirty && item.id === frame.id ? <i /> : null}
+                    </span>
+                    <small>
+                      <b>{String(cameraIndex + 1).padStart(2, "0")}</b>
+                      <span>{item.cameraChannel?.replace("CAM_", "") ?? "Camera"}</span>
+                    </small>
+                  </button>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
         <div className="editor-frame-counter">
           <strong>{frameIndex >= 0 ? frameIndex + 1 : "—"}</strong>
-          <span>/ {frames.length} frames</span>
+          <span>/ {frames.length} cameras</span>
         </div>
       </footer>
     </div>

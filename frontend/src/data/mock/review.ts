@@ -196,7 +196,7 @@ export const mockFindings: Finding[] = [
   {
     id: "finding-001",
     datasetId: "dataset-kitti-demo",
-    datasetVersion: "dvc://kitti-demo@v1.2",
+    datasetVersion: "kitti-demo@v1.2",
     qaRunId: "qa-run-demo-001",
     frameId: "frame-urban-001",
     sceneId: "scene-urban-001",
@@ -221,7 +221,7 @@ export const mockFindings: Finding[] = [
   {
     id: "finding-002",
     datasetId: "dataset-kitti-demo",
-    datasetVersion: "dvc://kitti-demo@v1.2",
+    datasetVersion: "kitti-demo@v1.2",
     qaRunId: "qa-run-demo-001",
     frameId: "frame-urban-002",
     sceneId: "scene-urban-001",
@@ -246,7 +246,7 @@ export const mockFindings: Finding[] = [
   {
     id: "finding-003",
     datasetId: "dataset-kitti-demo",
-    datasetVersion: "dvc://kitti-demo@v1.2",
+    datasetVersion: "kitti-demo@v1.2",
     qaRunId: "qa-run-demo-001",
     frameId: "frame-urban-003",
     sceneId: "scene-urban-001",
@@ -271,7 +271,7 @@ export const mockFindings: Finding[] = [
   {
     id: "finding-004",
     datasetId: "dataset-kitti-demo",
-    datasetVersion: "dvc://kitti-demo@v1.2",
+    datasetVersion: "kitti-demo@v1.2",
     qaRunId: "qa-run-demo-001",
     frameId: "frame-highway-001",
     sceneId: "scene-highway-002",
@@ -296,7 +296,7 @@ export const mockFindings: Finding[] = [
   {
     id: "finding-005",
     datasetId: "dataset-nuscenes-demo",
-    datasetVersion: "dvc://nuscenes-demo@v0.3",
+    datasetVersion: "nuscenes-demo@v0.3",
     qaRunId: "qa-run-demo-nuscenes-001",
     frameId: "frame-nuscenes-001",
     sceneId: "scene-nuscenes-003",
@@ -321,7 +321,7 @@ export const mockFindings: Finding[] = [
   {
     id: "finding-006",
     datasetId: "dataset-kitti-demo",
-    datasetVersion: "dvc://kitti-demo@v1.2",
+    datasetVersion: "kitti-demo@v1.2",
     qaRunId: "qa-run-demo-001",
     frameId: "frame-highway-003",
     sceneId: "scene-highway-002",

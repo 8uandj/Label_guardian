@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   pathForDatasetView,
@@ -28,4 +29,20 @@ test("top-level API navigation keeps only the dataset scope", () => {
     "/qa-cases?dataset=nuscenes",
   );
   assert.equal(pathForDatasetView("qa-queue"), "/qa-queue");
+});
+
+test("overview, reports and dataset runs render views without API-mode redirects", () => {
+  const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+
+  assert.match(appSource, /path="\/"[\s\S]*?<OverviewView/);
+  assert.match(appSource, /path="\/reports" element={<ReportsView state={state} \/>}/);
+  assert.match(appSource, /path="\/dataset-runs" element={<DatasetRunView \/>}/);
+  assert.doesNotMatch(appSource, /path="\/reports"[^\n]*<Navigate/);
+  assert.doesNotMatch(appSource, /path="\/dataset-runs"[^\n]*<Navigate/);
+});
+
+test("successful authentication navigates to the overview", () => {
+  const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+
+  assert.match(appSource, /await auth\.signIn\(email, password\);[\s\S]*?pathForDatasetView\("overview", cloudDatasetId\)/);
 });

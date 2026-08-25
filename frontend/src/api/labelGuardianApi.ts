@@ -247,9 +247,6 @@ export const labelGuardianApiV1 = {
   },
 };
 
-/** @deprecated Use labelGuardianApiV1 in new code. */
-export const labelGuardianApi = labelGuardianApiV1;
-
 export function isApiDataSourceEnabled(): boolean {
   return (runtimeEnvironment?.VITE_DATA_SOURCE ?? "api").toLowerCase() === "api";
 }

@@ -220,6 +220,7 @@ class CloudIngestionWorker:
                 dataset_root,
                 request.normalized_release,
                 max_images=request.max_frames,
+                exclude_sample_tokens=self._existing_sample_tokens(request),
             ).load()
         else:
             images, objects = KittiAdapter(dataset_root, split=request.split).load()
@@ -363,7 +364,28 @@ class CloudIngestionWorker:
         )
 
     def canonical_prefix(self, request: CloudIngestionRequest) -> str:
-        return f"datasets/official/{request.dataset_type}/{request.normalized_release}/{request.split}"
+        return f"datasets/official/{request.dataset_type}/product"
+
+    def _existing_sample_tokens(self, request: CloudIngestionRequest) -> set[str]:
+        if self.session_factory is None:
+            return set()
+        canonical_prefix = self.canonical_prefix(request)
+        with self.session_factory() as session:
+            keys = session.scalars(
+                select(QAImage.storage_key).where(
+                    QAImage.dataset == request.dataset_type,
+                    QAImage.storage_key.like(f"{canonical_prefix}/frames/%")
+                )
+            ).all()
+        tokens = set()
+        prefix_len = len(f"{canonical_prefix}/frames/")
+        for key in keys:
+            if not key:
+                continue
+            parts = key[prefix_len:].split("/")
+            if len(parts) >= 2:
+                tokens.add(parts[1])
+        return tokens
 
     def _materialize_raw_dataset(self, request: CloudIngestionRequest) -> Path:
         root = self._scratch_path(request)
@@ -378,7 +400,9 @@ class CloudIngestionWorker:
         if request.dataset_type == "kitti" and request.max_frames is not None:
             image_key = archive_keys["data_object_image_2.zip"]
             with self.storage_client.open_reader(self.settings.bucket_name, image_key) as image_archive:
-                selected_kitti_frames = self._selected_kitti_frame_ids_from_zip(image_archive, request.max_frames)
+                selected_kitti_frames = self._selected_kitti_frame_ids_from_zip(
+                    image_archive, request.max_frames, exclude_frame_ids=self._existing_sample_tokens(request)
+                )
         for archive_name, key in archive_keys.items():
             if request.dataset_type == "nuscenes":
                 archive_path = archive_root / archive_name
@@ -388,7 +412,9 @@ class CloudIngestionWorker:
                         archive_path,
                         dataset_root,
                         request=request,
-                        selected_sensor_files=self._selected_nuscenes_sensor_files(dataset_root, request),
+                        selected_sensor_files=self._selected_nuscenes_sensor_files(
+                            dataset_root, request, exclude_sample_tokens=self._existing_sample_tokens(request)
+                        ),
                     )
                 else:
                     _safe_extract_tar(archive_path, dataset_root)
@@ -452,6 +478,7 @@ class CloudIngestionWorker:
         self,
         dataset_root: Path,
         request: CloudIngestionRequest,
+        exclude_sample_tokens: set[str] | None = None,
     ) -> set[str] | None:
         if request.max_frames is None:
             return None
@@ -472,9 +499,25 @@ class CloudIngestionWorker:
             row["token"]: row
             for row in json.loads(sensor_path.read_text(encoding="utf-8"))
         } if sensor_path.is_file() else {}
+        scene_path = metadata_root / "scene.json"
+        scenes = {
+            row["token"]: row
+            for row in json.loads(scene_path.read_text(encoding="utf-8"))
+        } if scene_path.is_file() else {}
+        filtered_samples = [
+            row for row in samples 
+            if not exclude_sample_tokens or row["token"] not in exclude_sample_tokens
+        ]
         selected_sample_tokens = [
             row["token"]
-            for row in sorted(samples, key=lambda sample: (sample.get("timestamp", 0), sample.get("token", "")))[: request.max_frames]
+            for row in sorted(
+                filtered_samples,
+                key=lambda sample: (
+                    scenes.get(sample.get("scene_token", ""), {}).get("name", ""),
+                    sample.get("timestamp", 0),
+                    sample.get("token", ""),
+                )
+            )[: request.max_frames]
         ]
         selected: set[str] = set()
         for row in sample_data:
@@ -508,7 +551,9 @@ class CloudIngestionWorker:
             return CloudIngestionWorker._selected_kitti_frame_ids_from_zip(archive, max_frames)
 
     @staticmethod
-    def _selected_kitti_frame_ids_from_zip(image_archive: BinaryIO, max_frames: int | None) -> set[str] | None:
+    def _selected_kitti_frame_ids_from_zip(
+        image_archive: BinaryIO, max_frames: int | None, exclude_frame_ids: set[str] | None = None
+    ) -> set[str] | None:
         if max_frames is None:
             return None
         with zipfile.ZipFile(image_archive) as archive:
@@ -518,6 +563,7 @@ class CloudIngestionWorker:
                 if not member.is_dir()
                 and member.filename.startswith("training/image_2/")
                 and Path(member.filename).suffix.lower() == ".png"
+                and (not exclude_frame_ids or Path(member.filename).stem not in exclude_frame_ids)
             ]
         return set(sorted(frame_ids)[:max_frames])
 
@@ -732,7 +778,7 @@ class CloudIngestionWorker:
                     select(QAImage).where(
                         QAImage.source_image_id == image.source_image_id,
                         QAImage.dataset == request.dataset_type,
-                        QAImage.release == request.normalized_release,
+                        QAImage.release == "product",
                     )
                 )
                 if db_image is None:
@@ -744,7 +790,8 @@ class CloudIngestionWorker:
                 db_image.object_url = self.settings.object_uri(object_key)
                 db_image.provider = request.dataset_type
                 db_image.dataset = request.dataset_type
-                db_image.release = request.normalized_release
+                db_image.release = "product"
+                db_image.split = "product"
                 db_image.modality = "camera"
                 db_image.asset_type = "image"
                 db_image.data_format = Path(storage_filename).suffix.lower().lstrip(".") or None

@@ -476,7 +476,7 @@ def test_cloud_worker_publish_copies_staging_to_canonical_without_database(tmp_p
     worker.publish(request)
 
     canonical_key = (
-        "datasets/official/kitti/object/smoke/frames/"
+        "datasets/official/kitti/product/frames/"
         "sequence-default/000000/CAM_FRONT.png"
     )
     result_key = "ops/ingestion-runs/run/result.json"
@@ -594,4 +594,4 @@ def test_cloud_worker_publish_resume_still_syncs_database_metadata(tmp_path: Pat
 
     assert len(rows) == 1
     assert rows[0].source_image_id == "kitti:000000"
-    assert rows[0].storage_key == "datasets/official/kitti/object/full/frames/sequence-default/000000/CAM_FRONT.png"
+    assert rows[0].storage_key == "datasets/official/kitti/product/frames/sequence-default/000000/CAM_FRONT.png"

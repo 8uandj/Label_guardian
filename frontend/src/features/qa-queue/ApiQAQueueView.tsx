@@ -577,7 +577,8 @@ export function ApiQAQueueView({
           </Card>
         </section>
       ) : (
-        <section className="queue-console-workbench">
+        <>
+          <section className="queue-console-workbench">
         <Card className="queue-console-filter-panel">
           <div className="queue-panel-heading">
             <strong>Bộ lọc</strong>
@@ -995,6 +996,7 @@ export function ApiQAQueueView({
           reviewProgress={reviewProgress}
         />
       </section>
+        </>
       )}
     </div>
   );

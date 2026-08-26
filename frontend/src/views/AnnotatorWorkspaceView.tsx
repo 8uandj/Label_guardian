@@ -41,7 +41,6 @@ import type {
   RealDatasetLabelDto,
 } from "../api/types";
 import {
-  AuthenticatedImage,
   useAuthenticatedAssetUrl,
 } from "../components/AuthenticatedImage";
 import "../styles/label-editor.css";

@@ -968,6 +968,7 @@ async def list_real_dataset_frame_samples(
                 if result.count > 0:
                     return result
             except TimeoutError:
+                await session.rollback()
                 pass
             cached = _list_official_cache_frame_samples(
                 service,

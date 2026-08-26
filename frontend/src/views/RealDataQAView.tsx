@@ -118,6 +118,9 @@ function PredictionBox({
 }
 
 export function RealDataQAView() {
+  const lang = (localStorage.getItem("label-guardian-lang") as "en" | "vi") || "en";
+  const t = (en: string, vi: string) => (lang === "en" ? en : vi);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedDataset = searchParams.get("dataset") || "nuscenes";
   const requestedSplit = searchParams.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "product";
@@ -217,15 +220,15 @@ export function RealDataQAView() {
   if (samplesQuery.isPending) {
     return (
       <Card className="real-data-state">
-        <strong>Đang đọc dataset thật…</strong>
-        <p>Backend đang nạp metadata và YOLO labels.</p>
+        <strong>{t("Loading dataset...", "Đang nạp dataset...")}</strong>
+        <p>{t("Fetching dataset metadata and annotations from database.", "Đang nạp dữ liệu metadata và nhãn đối tượng.")}</p>
       </Card>
     );
   }
   if (samplesQuery.isError) {
     return (
       <Card className="real-data-state is-error">
-        <strong>Không tải được dataset thật</strong>
+        <strong>{t("Failed to load dataset", "Không thể tải tập dữ liệu")}</strong>
         <p>{samplesQuery.error.message}</p>
         <code>
           DATASET_BACKEND=database · split={requestedSplit ?? "backend default"}
@@ -238,9 +241,9 @@ export function RealDataQAView() {
     <div className="real-data-page">
       <div className="real-data-heading">
         <SectionHeading
-          eyebrow="Bước 1 · Dataset thật + Agent"
-          title="Chọn frame và tạo QA Case"
-          description="Ảnh và nhãn được đọc từ Supabase metadata, còn frame được stream từ GCS private qua backend."
+          eyebrow={t("QA Triage", "Phân loại QA")}
+          title={t("Triage Frame & Generate QA Cases", "Triage Frame và tạo QA Case")}
+          description={t("Access and triage sensor frames to execute validation runs and log QA findings.", "Truy xuất và triage các sensor frame để thực thi tiến trình đánh giá và ghi nhận lỗi QA.")}
         />
         <div className="real-data-controls">
           <label>
@@ -507,25 +510,23 @@ export function RealDataQAView() {
                 }
               >
                 {evaluation.isPending
-                  ? "Đang chạy inference…"
-                  : "Chạy Agent & tạo QA Cases"}
+                  ? t("Running verification...", "Đang chạy kiểm tra...")
+                  : t("Run Agent & Generate QA Cases", "Chạy Agent & tạo QA Cases")}
               </Button>
             </div>
             {evaluation.isError ? (
               <div className="real-data-agent-error">
-                <strong>Agent request thất bại</strong>
+                <strong>{t("Verification request failed", "Yêu cầu kiểm tra thất bại")}</strong>
                 <p>{evaluation.error.message}</p>
               </div>
             ) : null}
             {!report && !evaluation.isPending ? (
               <div className="real-data-agent-empty">
                 <p>
-                  Chạy Agent để so sánh ground truth thật với prediction YOLO
-                  trên frame đang chọn.
+                  {t("Execute the validation agent on the selected frame to detect annotations defects.", "Chạy bộ máy kiểm tra trên frame đang chọn để phát hiện các khuyết tật nhãn.")}
                 </p>
                 <small>
-                  Lần đầu có thể chậm do tải model. Cần cài extra agent-yolo từ
-                  pyproject.toml.
+                  {t("Running deep validation using active perception models and consistency rule sets.", "Chạy kiểm thử chuyên sâu bằng mô hình nhận diện và bộ quy tắc kiểm tra nhất quán.")}
                 </small>
               </div>
             ) : null}
@@ -550,7 +551,7 @@ export function RealDataQAView() {
                   )}
                   {evaluation.data?.persisted ? (
                     <span>
-                      Đã lưu · {evaluation.data.createdCaseIds.length} QA cases
+                      {t("Persisted", "Đã lưu")} · {evaluation.data.createdCaseIds.length} QA cases
                     </span>
                   ) : null}
                 </div>
@@ -572,7 +573,7 @@ export function RealDataQAView() {
                       </div>
                       <p>{issue.explanation}</p>
                       {issue.suggestedFix ? (
-                        <small>Đề xuất: {issue.suggestedFix}</small>
+                        <small>{t("Suggested fix", "Đề xuất")}: {issue.suggestedFix}</small>
                       ) : null}
                     </article>
                   ))}

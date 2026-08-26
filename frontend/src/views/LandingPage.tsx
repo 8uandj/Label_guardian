@@ -337,39 +337,37 @@ export function LandingPage({ lang, onChangeLang }: { lang: "en" | "vi"; onChang
           </a>
         </div>
         <div className="landing-workflow">
-          <div className="landing-workflow-inner">
-            <ol className="workflow-steps">
-              {workflowSteps.map((step, index) => {
-                const Icon = step.icon;
-                return (
-                  <li key={step.label} className={index === 1 ? "is-current" : ""}>
-                    <span><Icon size={19} aria-hidden="true" /></span>
-                    <div><strong>{step.label}</strong><small>{step.meta}</small></div>
-                  </li>
-                );
-              })}
-            </ol>
-            <div className="workflow-stage">
-              <figure>
-                <img src="/label-guardian-hero.png" alt="Frame under human review with model and annotation overlays" />
-                <span className="workflow-bbox workflow-bbox-label" />
-                <span className="workflow-bbox workflow-bbox-model" />
-              </figure>
-              <div className="workflow-decision">
-                <div>
-                  <GitCompareArrows size={18} aria-hidden="true" />
-                  <span><small>{t("Evidence", "Bằng chứng")}</small><strong>{t("Class mismatch", "Sai lớp đối tượng")}</strong></span>
-                </div>
-                <div className="workflow-actions" aria-label="Review decisions">
-                  <span><Check size={15} />{t("Accept", "Đồng ý")}</span>
-                  <span className="is-selected"><PencilRuler size={15} />{t("Edit", "Sửa đổi")}</span>
-                  <span><History size={15} />{t("Restore", "Phục hồi")}</span>
-                </div>
-                <div className="workflow-revision">
-                  <GitCommitHorizontal size={17} />
-                  <span>revision_03</span>
-                  <b>{t("saved", "đã lưu")}</b>
-                </div>
+          <ol className="workflow-steps">
+            {workflowSteps.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <li key={step.label} className={index === 1 ? "is-current" : ""}>
+                  <span><Icon size={19} aria-hidden="true" /></span>
+                  <div><strong>{step.label}</strong><small>{step.meta}</small></div>
+                </li>
+              );
+            })}
+          </ol>
+          <div className="workflow-stage">
+            <figure>
+              <img src="/label-guardian-hero.png" alt="Frame under human review with model and annotation overlays" />
+              <span className="workflow-bbox workflow-bbox-label" />
+              <span className="workflow-bbox workflow-bbox-model" />
+            </figure>
+            <div className="workflow-decision">
+              <div>
+                <GitCompareArrows size={18} aria-hidden="true" />
+                <span><small>{t("Evidence", "Bằng chứng")}</small><strong>{t("Class mismatch", "Sai lớp đối tượng")}</strong></span>
+              </div>
+              <div className="workflow-actions" aria-label="Review decisions">
+                <span><Check size={15} />{t("Accept", "Đồng ý")}</span>
+                <span className="is-selected"><PencilRuler size={15} />{t("Edit", "Sửa đổi")}</span>
+                <span><History size={15} />{t("Restore", "Phục hồi")}</span>
+              </div>
+              <div className="workflow-revision">
+                <GitCommitHorizontal size={17} />
+                <span>revision_03</span>
+                <b>{t("saved", "đã lưu")}</b>
               </div>
             </div>
           </div>

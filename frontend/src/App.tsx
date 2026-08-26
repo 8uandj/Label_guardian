@@ -53,7 +53,15 @@ function App() {
   const authUsers = [...state.users, ...localUsers];
   const activeUser = auth.enabled
     ? auth.user
-    : signedInUser ?? state.users.find((user) => user.id === state.activeUserId) ?? state.users[0];
+    : signedInUser ?? (apiDataSourceEnabled
+        ? {
+            id: "api-default-user",
+            email: "reviewer@labelguardian.space",
+            name: "QA Specialist",
+            role: "reviewer",
+            avatarInitials: "QA",
+          }
+        : state.users.find((user) => user.id === state.activeUserId) ?? state.users[0]);
   const mockSelectedDataset =
     state.datasets.find((dataset) => dataset.id === state.selectedDatasetId) ?? state.datasets[0];
   const selectedDataset = apiDataSourceEnabled

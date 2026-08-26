@@ -23,7 +23,11 @@ def create_session_factory(database_url: str) -> sessionmaker[Session]:
 
     Database schemas are always managed by Alembic before the worker starts.
     """
-    engine: Engine = create_engine(normalize_sync_database_url(database_url), pool_pre_ping=True)
+    engine: Engine = create_engine(
+        normalize_sync_database_url(database_url),
+        pool_pre_ping=True,
+        connect_args={"prepare_threshold": None},
+    )
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 

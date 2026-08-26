@@ -56,6 +56,21 @@ class GCSBlobRangeReader(io.RawIOBase):
         self.position += len(payload)
         return payload
 
+    def readinto(self, b: bytearray | memoryview) -> int:
+        if self.position >= self.size:
+            return 0
+        size = len(b)
+        if size == 0:
+            return 0
+        end = min(self.position + size, self.size) - 1
+        if end < self.position:
+            return 0
+        payload = cast(bytes, self.blob.download_as_bytes(start=self.position, end=end))
+        n = len(payload)
+        b[:n] = payload
+        self.position += n
+        return n
+
 
 class GCSObjectStorageClient:
     """Small boto3-compatible subset backed by Google Cloud Storage."""
@@ -92,11 +107,11 @@ class GCSObjectStorageClient:
         destination.parent.mkdir(parents=True, exist_ok=True)
         self.client.bucket(bucket).blob(key).download_to_filename(str(destination))
 
-    def open_reader(self, bucket: str, key: str) -> GCSBlobRangeReader:
+    def open_reader(self, bucket: str, key: str) -> io.BufferedReader:
         blob = self.client.bucket(bucket).blob(key)
         blob.reload()
         size = int(blob.size or 0)
-        return GCSBlobRangeReader(blob, size)
+        return io.BufferedReader(GCSBlobRangeReader(blob, size), buffer_size=8 * 1024 * 1024)
 
     def object_exists(self, bucket: str, key: str) -> bool:
         return bool(self.client.bucket(bucket).blob(key).exists())

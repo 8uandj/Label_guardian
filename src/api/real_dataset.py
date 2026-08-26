@@ -888,12 +888,14 @@ async def _get_database_image_row(
     *,
     split: str,
 ) -> QAImage:
+    # Always use the canonical 'product' release for both datasets — this matches
+    # _database_dataset_conditions() which also hardcodes release == 'product'.
+    # Using service.dataset_version here would break when the Railway env has a
+    # stale DATASET_VERSION (e.g. 'v1.0-mini') while all ingested images use
+    # release='product'.
     supported_release = or_(
-        and_(func.lower(QAImage.dataset) == "nuscenes", QAImage.release == service.dataset_version),
-        and_(
-            func.lower(QAImage.dataset) == "kitti",
-            QAImage.release == ("product" if service.dataset_version == "product" else "object")
-        ),
+        and_(func.lower(QAImage.dataset) == "nuscenes", QAImage.release == "product"),
+        and_(func.lower(QAImage.dataset) == "kitti", QAImage.release == "product"),
     )
     image = await session.scalar(
         select(QAImage).where(

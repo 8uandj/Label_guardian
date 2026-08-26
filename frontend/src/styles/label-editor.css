@@ -1447,3 +1447,91 @@
     animation: none;
   }
 }
+
+/* Redesigned Timeline controls with Dropdowns & Physical Camera layout */
+.editor-nav-selectors {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.editor-selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.editor-selector-group span {
+  color: #62777d;
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+.editor-select-box {
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--editor-line, #1c2b31);
+  border-radius: 4px;
+  color: var(--text-strong, #edf5f5);
+  background: var(--color-surface-2, #172329);
+  font-size: 11px;
+  outline: none;
+  max-width: 140px;
+}
+.editor-select-box:focus {
+  border-color: var(--color-brand, #56c9bf);
+}
+
+.editor-camera-grid-physical-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.editor-camera-grid-physical {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(110px, 140px));
+  gap: 8px;
+}
+.camera-grid-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  min-height: 42px;
+  border: 1px solid var(--editor-line, #1c2b31);
+  border-radius: 4px;
+  background: var(--color-surface-1, #121b20);
+  color: var(--text-muted, #748197);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.camera-grid-btn:hover {
+  background: var(--color-surface-2, #172329);
+  color: var(--text-strong, #edf5f5);
+}
+.camera-grid-btn.is-active {
+  border-color: var(--color-brand, #56c9bf);
+  background: var(--color-surface-3, #1c2b31);
+  color: var(--color-brand, #56c9bf);
+  font-weight: bold;
+}
+.camera-grid-btn .btn-channel {
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.camera-grid-btn .btn-num {
+  font-size: 8px;
+  font-family: var(--font-mono, monospace);
+  margin-top: 2px;
+  opacity: 0.7;
+}
+.camera-grid-btn .modified-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-brand, #56c9bf);
+}

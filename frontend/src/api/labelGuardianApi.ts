@@ -168,10 +168,12 @@ export const labelGuardianApiV1 = {
     offset = 0,
     signal?: AbortSignal,
     dataset?: string,
+    sequenceId?: string,
   ): Promise<RealDatasetFrameSampleListDto> {
-    const parameters = new URLSearchParams({ limit: "8", offset: String(offset) });
+    const parameters = new URLSearchParams({ limit: "100", offset: String(offset) });
     if (split) parameters.set("split", split);
     if (dataset) parameters.set("dataset", dataset);
+    if (sequenceId) parameters.set("sequence_id", sequenceId);
     return requestJson<RealDatasetFrameSampleListDto>(`${API_V1_PREFIX}/dataset/frame-samples?${parameters}`, signal);
   },
 

@@ -1046,3 +1046,178 @@ a:focus-visible {
 .queue-frame-scope > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .queue-frame-scope strong { color: #d9e2f1; font-size: 11px; }
 .queue-frame-scope span { overflow: hidden; color: #718198; font-size: 9px; text-overflow: ellipsis; }
+
+/* Redesigned Tab Navigation and Raw Frames Explorer */
+.queue-tabs-navigation {
+  display: flex;
+  gap: 16px;
+  margin: 16px 0 24px;
+  border-bottom: 1px solid var(--line-strong, #1f2d3d);
+}
+.queue-tab-button {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted, #748197);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.queue-tab-button:hover {
+  color: var(--text-strong, #edf5f5);
+}
+.queue-tab-button.is-active {
+  border-bottom-color: var(--color-brand, #56c9bf);
+  color: var(--color-brand, #56c9bf);
+}
+
+.all-frames-explorer {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 12px 0;
+}
+.explorer-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+}
+.explorer-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.explorer-sidebar label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.explorer-sidebar label span {
+  color: var(--text-muted, #748197);
+  font-size: 11px;
+  font-weight: 600;
+}
+.explorer-sidebar select {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong, #1f2d3d);
+  border-radius: 6px;
+  color: var(--text-strong, #edf5f5);
+  background: var(--color-surface-2, #172329);
+  font-size: 12px;
+  outline: none;
+}
+.explorer-sidebar select:focus {
+  border-color: var(--color-brand, #56c9bf);
+}
+
+.explorer-frames-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+  border: 1px solid var(--line-strong, #1f2d3d);
+  border-radius: 8px;
+  background: var(--color-canvas, #090d10);
+  padding: 8px;
+}
+.explorer-frame-item {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--color-surface-1, #121b20);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+.explorer-frame-item:hover {
+  background: var(--color-surface-2, #172329);
+}
+.explorer-frame-item.is-active {
+  border-color: var(--color-brand, #56c9bf);
+  background: var(--color-surface-3, #1c2b31);
+}
+.explorer-frame-item strong {
+  color: var(--text-strong, #edf5f5);
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+}
+.explorer-frame-item span {
+  color: var(--text-muted, #748197);
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+.explorer-main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.camera-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.camera-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-strong, #1f2d3d);
+  border-radius: 8px;
+  background: var(--color-surface-1, #121b20);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.camera-card:hover {
+  border-color: var(--color-brand, #56c9bf);
+  transform: translateY(-2px);
+}
+.camera-thumb {
+  position: relative;
+  aspect-ratio: 16/9;
+  width: 100%;
+  background: #000;
+  overflow: hidden;
+}
+.camera-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+}
+.camera-info strong {
+  color: var(--text-strong, #edf5f5);
+  font-size: 11px;
+}
+.camera-info span {
+  color: var(--text-muted, #748197);
+  font-size: 9px;
+  font-family: var(--font-mono, monospace);
+}
+.empty-explorer-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted, #748197);
+  text-align: center;
+  gap: 12px;
+}
+.empty-explorer-state strong {
+  color: var(--text-strong, #edf5f5);
+  font-size: 14px;
+}

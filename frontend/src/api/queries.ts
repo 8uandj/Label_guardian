@@ -8,8 +8,8 @@ export const apiQueryKeys = {
     ["api-v1", "qa-cases", split, imageId] as const,
   realDatasetImages: (split: string | undefined, dataset: string | undefined, offset: number) =>
     ["api-v1", "dataset", "images", split, dataset, offset] as const,
-  realDatasetFrameSamples: (split: string | undefined, dataset: string | undefined, offset: number) =>
-    ["api-v1", "dataset", "frame-samples", split, dataset, offset] as const,
+  realDatasetFrameSamples: (split: string | undefined, dataset: string | undefined, offset: number, sequenceId?: string) =>
+    ["api-v1", "dataset", "frame-samples", split, dataset, offset, sequenceId] as const,
   annotations: (split?: string, imageId?: string) =>
     ["api-v1", "dataset", "annotations", split, imageId] as const,
   annotationHistory: (split?: string, imageId?: string) =>
@@ -54,10 +54,10 @@ export function useRealDatasetImagesQuery(split: string | undefined, offset: num
   });
 }
 
-export function useRealDatasetFrameSamplesQuery(split: string | undefined, offset: number, dataset?: string) {
+export function useRealDatasetFrameSamplesQuery(split: string | undefined, offset: number, dataset?: string, sequenceId?: string) {
   return useQuery({
-    queryKey: apiQueryKeys.realDatasetFrameSamples(split, dataset, offset),
-    queryFn: ({ signal }) => labelGuardianApiV1.listRealDatasetFrameSamples(split, offset, signal, dataset),
+    queryKey: apiQueryKeys.realDatasetFrameSamples(split, dataset, offset, sequenceId),
+    queryFn: ({ signal }) => labelGuardianApiV1.listRealDatasetFrameSamples(split, offset, signal, dataset, sequenceId),
   });
 }
 

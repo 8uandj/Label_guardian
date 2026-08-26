@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider";
-import { useQaCasesQuery, useQaCaseStatusMutation } from "../../api/queries";
+import { useQaCasesQuery, useQaCaseStatusMutation, useRealDatasetFrameSamplesQuery } from "../../api/queries";
+import { AuthenticatedImage } from "../../components/AuthenticatedImage";
 import type { QaCaseDto } from "../../api/types";
 import { Badge, Button, Card, StatusBadge } from "../../components/ui";
 import type { FindingType, ReviewStatus, Severity } from "../../domain/types";
@@ -97,6 +98,37 @@ export function ApiQAQueueView({
   const [sortBy, setSortBy] = useState<ApiQueueSortKey>("priority");
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [page, setPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<"cases" | "frames">("cases");
+  const [selectedSequence, setSelectedSequence] = useState<string>("all");
+  const [selectedFrameId, setSelectedFrameId] = useState<string>("");
+
+  const allSamplesQuery = useRealDatasetFrameSamplesQuery(scopedSplit, 0, scopedDataset);
+  const allSamples = allSamplesQuery.data?.results ?? [];
+
+  const explorerSequences = useMemo(() => {
+    return [...new Set(allSamples.map((sample) => sample.sequenceId))].sort();
+  }, [allSamples]);
+
+  const filteredExplorerSamples = useMemo(() => {
+    if (selectedSequence === "all") return allSamples;
+    return allSamples.filter((sample) => sample.sequenceId === selectedSequence);
+  }, [allSamples, selectedSequence]);
+
+  useEffect(() => {
+    if (filteredExplorerSamples.length > 0) {
+      const exists = filteredExplorerSamples.some((s) => s.id === selectedFrameId);
+      if (!exists && filteredExplorerSamples[0]) {
+        setSelectedFrameId(filteredExplorerSamples[0].id);
+      }
+    } else {
+      setSelectedFrameId("");
+    }
+  }, [filteredExplorerSamples, selectedFrameId]);
+
+  const activeSample = useMemo(() => {
+    return filteredExplorerSamples.find((s) => s.id === selectedFrameId);
+  }, [filteredExplorerSamples, selectedFrameId]);
+
   const [decisionMessage, setDecisionMessage] = useState("");
 
   const sequenceOptions = useMemo(
@@ -443,7 +475,109 @@ export function ApiQAQueueView({
         />
       </section>
 
-      <section className="queue-console-workbench">
+      <div className="queue-tabs-navigation">
+        <button
+          className={`queue-tab-button ${activeTab === "cases" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("cases")}
+          type="button"
+        >
+          QA Cases Queue
+        </button>
+        <button
+          className={`queue-tab-button ${activeTab === "frames" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("frames")}
+          type="button"
+        >
+          All Dataset Frames
+        </button>
+      </div>
+
+      {activeTab === "frames" ? (
+        <section className="all-frames-explorer">
+          <Card className="explorer-card">
+            <div className="explorer-layout">
+              {/* Sidebar */}
+              <div className="explorer-sidebar">
+                <label>
+                  <span>Sequence (Scene)</span>
+                  <select
+                    value={selectedSequence}
+                    onChange={(event) => {
+                      setSelectedSequence(event.target.value);
+                      setSelectedFrameId("");
+                    }}
+                  >
+                    <option value="all">Tất cả sequence</option>
+                    {explorerSequences.map((sequence) => (
+                      <option key={sequence} value={sequence}>
+                        {sequence}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <span>Chọn Frame ({filteredExplorerSamples.length})</span>
+                  <div className="explorer-frames-list">
+                    {filteredExplorerSamples.length > 0 ? (
+                      filteredExplorerSamples.map((sample) => (
+                        <button
+                          key={sample.id}
+                          className={`explorer-frame-item ${sample.id === selectedFrameId ? "is-active" : ""}`}
+                          onClick={() => setSelectedFrameId(sample.id)}
+                          type="button"
+                        >
+                          <strong>{sample.sampleId ? sample.sampleId.slice(0, 16) + "..." : sample.id}</strong>
+                          <span>{sample.sequenceId} · {sample.cameraCount} views</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div style={{ padding: "16px", color: "var(--text-muted, #748197)", fontSize: "11px", textAlign: "center" }}>
+                        Không tìm thấy frame nào.
+                      </div>
+                    )}
+                  </div>
+                </label>
+              </div>
+
+              {/* Main Content: Camera Grid */}
+              <div className="explorer-main-content">
+                {activeSample ? (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <h3>Frame views cho <code>{activeSample.sequenceId}</code></h3>
+                      <Badge tone="info">{activeSample.cameras.length} camera góc</Badge>
+                    </div>
+                    <div className="camera-grid">
+                      {activeSample.cameras.map((camera) => (
+                        <div
+                          key={camera.id}
+                          className="camera-card"
+                          onClick={() => onOpenEditor?.(scopedSplit, camera.id)}
+                        >
+                          <div className="camera-thumb">
+                            <AuthenticatedImage sourcePath={camera.imageUrl} alt={camera.cameraChannel || "Camera view"} loading="lazy" />
+                          </div>
+                          <div className="camera-info">
+                            <strong>{camera.cameraChannel ?? "Camera View"}</strong>
+                            <span>{camera.width}x{camera.height}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="empty-explorer-state">
+                    <strong>Chưa chọn frame</strong>
+                    <p>Vui lòng chọn một frame từ danh sách bên trái để xem các camera góc.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        </section>
+      ) : (
+        <section className="queue-console-workbench">
         <Card className="queue-console-filter-panel">
           <div className="queue-panel-heading">
             <strong>Bộ lọc</strong>
@@ -861,6 +995,7 @@ export function ApiQAQueueView({
           reviewProgress={reviewProgress}
         />
       </section>
+      )}
     </div>
   );
 }

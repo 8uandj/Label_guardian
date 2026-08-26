@@ -172,6 +172,57 @@ export function AnnotatorWorkspaceView({
     () => samplesQuery.data?.results.flatMap((sample) => sample.cameras) ?? [],
     [samplesQuery.data],
   );
+
+  const [selectedSequence, setSelectedSequence] = useState<string>("");
+  const [selectedSampleId, setSelectedSampleId] = useState<string>("");
+
+  const allSamples = samplesQuery.data?.results ?? [];
+  const sequences = useMemo(() => {
+    return [...new Set(allSamples.map((sample) => sample.sequenceId))].sort();
+  }, [allSamples]);
+
+  const activeFrame = useMemo(() => {
+    return frames.find((item) => item.id === selectedImageId);
+  }, [frames, selectedImageId]);
+
+  const activeSample = useMemo(() => {
+    if (!activeFrame) return null;
+    return allSamples.find((sample) => sample.cameras.some((cam) => cam.id === activeFrame.id));
+  }, [allSamples, activeFrame]);
+
+  useEffect(() => {
+    if (activeSample) {
+      setSelectedSequence(activeSample.sequenceId);
+      setSelectedSampleId(activeSample.id);
+    }
+  }, [activeSample]);
+
+  const filteredSamplesForDropdown = useMemo(() => {
+    if (!selectedSequence) return allSamples;
+    return allSamples.filter((s) => s.sequenceId === selectedSequence);
+  }, [allSamples, selectedSequence]);
+
+  const handleSequenceChange = (nextSeq: string) => {
+    setSelectedSequence(nextSeq);
+    const seqSamples = allSamples.filter((s) => s.sequenceId === nextSeq);
+    if (seqSamples.length > 0 && seqSamples[0]) {
+      const nextSample = seqSamples[0];
+      setSelectedSampleId(nextSample.id);
+      if (nextSample.cameras.length > 0 && nextSample.cameras[0]) {
+        setSelectedImageId(nextSample.cameras[0].id);
+        updateSelectedImageInUrl(nextSample.cameras[0].id);
+      }
+    }
+  };
+
+  const handleSampleChange = (nextSampleId: string) => {
+    setSelectedSampleId(nextSampleId);
+    const nextSample = allSamples.find((s) => s.id === nextSampleId);
+    if (nextSample && nextSample.cameras.length > 0 && nextSample.cameras[0]) {
+      setSelectedImageId(nextSample.cameras[0].id);
+      updateSelectedImageInUrl(nextSample.cameras[0].id);
+    }
+  };
   const annotationQuery = useImageAnnotationsQuery(
     split,
     selectedImageId || undefined,
@@ -1308,65 +1359,119 @@ export function AnnotatorWorkspaceView({
       </main>
 
       <footer className="editor-timeline">
-        <div className="editor-playback-controls">
-          <button
-            type="button"
-            disabled={frameIndex <= 0}
-            onClick={() =>
-              frames[frameIndex - 1] && switchFrame(frames[frameIndex - 1])
-            }
-          >
-            <ChevronLeft size={17} />
-          </button>
-          <button
-            type="button"
-            onClick={() => void annotationQuery.refetch()}
-            title="Reload revision"
-          >
-            <RotateCcw size={17} />
-          </button>
-          <button
-            type="button"
-            disabled={frameIndex < 0 || frameIndex >= frames.length - 1}
-            onClick={() =>
-              frames[frameIndex + 1] && switchFrame(frames[frameIndex + 1])
-            }
-          >
-            <ChevronRight size={17} />
-          </button>
+        {/* Navigation Dropdowns */}
+        <div className="editor-nav-selectors">
+          <div className="editor-selector-group">
+            <span>Sequence</span>
+            <select
+              className="editor-select-box"
+              value={selectedSequence}
+              onChange={(e) => handleSequenceChange(e.target.value)}
+            >
+              {sequences.map((seq) => (
+                <option key={seq} value={seq}>
+                  {seq}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="editor-selector-group">
+            <span>Frame</span>
+            <select
+              className="editor-select-box"
+              value={selectedSampleId}
+              onChange={(e) => handleSampleChange(e.target.value)}
+            >
+              {filteredSamplesForDropdown.map((sample, idx) => (
+                <option key={sample.id} value={sample.id}>
+                  Frame {String(idx + 1).padStart(2, "0")}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="editor-frame-strip">
-          {(samplesQuery.data?.results ?? []).map((sample, sampleIndex) => (
-            <section className="editor-frame-group" key={sample.id}>
-              <header>
-                <strong>Frame {String(sampleIndex + 1).padStart(2, "0")}</strong>
-                <small>{sample.sequenceId}</small>
-              </header>
-              <div className="editor-camera-strip">
-                {sample.cameras.map((item, cameraIndex) => (
-                  <button
-                    className={item.id === frame.id ? "is-active" : ""}
-                    type="button"
-                    key={item.id}
-                    onClick={() => switchFrame(item)}
-                  >
-                    <span className="frame-thumb">
-                      <AuthenticatedImage sourcePath={item.imageUrl} alt="" />
-                      {dirty && item.id === frame.id ? <i /> : null}
-                    </span>
-                    <small>
-                      <b>{String(cameraIndex + 1).padStart(2, "0")}</b>
-                      <span>{item.cameraChannel?.replace("CAM_", "") ?? "Camera"}</span>
-                    </small>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
+
+        {/* Physical Camera Grid */}
+        <div className="editor-camera-grid-physical-container">
+          <div className="editor-camera-grid-physical">
+            {selectedDataset === "nuscenes" && activeSample ? (
+              // NuScenes 3x2 physical camera grid layout
+              (() => {
+                const layoutChannels = [
+                  ["CAM_FRONT_LEFT", "CAM_FRONT", "CAM_FRONT_RIGHT"],
+                  ["CAM_BACK_LEFT", "CAM_BACK", "CAM_BACK_RIGHT"],
+                ];
+                return layoutChannels.flat().map((channel) => {
+                  const camera = activeSample.cameras.find(
+                    (c) => c.cameraChannel === channel,
+                  );
+                  if (!camera) return <div key={channel} style={{ opacity: 0.2 }} className="camera-grid-btn"><span className="btn-channel">{channel.replace("CAM_", "")}</span></div>;
+                  return (
+                    <button
+                      key={channel}
+                      className={`camera-grid-btn ${camera.id === frame.id ? "is-active" : ""}`}
+                      type="button"
+                      onClick={() => switchFrame(camera)}
+                    >
+                      <span className="btn-channel">{channel.replace("CAM_", "")}</span>
+                      <span className="btn-num">{camera.width}x{camera.height}</span>
+                      {dirty && camera.id === frame.id && <i className="modified-dot" />}
+                    </button>
+                  );
+                });
+              })()
+            ) : (
+              // KITTI layout or fallback (displays all available cameras for the active frame)
+              (activeSample?.cameras ?? []).map((camera, cameraIdx) => (
+                <button
+                  key={camera.id}
+                  className={`camera-grid-btn ${camera.id === frame.id ? "is-active" : ""}`}
+                  type="button"
+                  onClick={() => switchFrame(camera)}
+                  style={{ gridColumn: "span 3" }} // Span fully across to center it
+                >
+                  <span className="btn-channel">{camera.cameraChannel ?? `CAMERA ${cameraIdx + 1}`}</span>
+                  <span className="btn-num">{camera.width}x{camera.height}</span>
+                  {dirty && camera.id === frame.id && <i className="modified-dot" />}
+                </button>
+              ))
+            )}
+          </div>
         </div>
-        <div className="editor-frame-counter">
-          <strong>{frameIndex >= 0 ? frameIndex + 1 : "—"}</strong>
-          <span>/ {frames.length} cameras</span>
+
+        {/* Playback Controls and Count */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "8px" }}>
+          <div className="editor-playback-controls">
+            <button
+              type="button"
+              disabled={frameIndex <= 0}
+              onClick={() =>
+                frames[frameIndex - 1] && switchFrame(frames[frameIndex - 1])
+              }
+            >
+              <ChevronLeft size={17} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void annotationQuery.refetch()}
+              title="Reload revision"
+            >
+              <RotateCcw size={17} />
+            </button>
+            <button
+              type="button"
+              disabled={frameIndex < 0 || frameIndex >= frames.length - 1}
+              onClick={() =>
+                frames[frameIndex + 1] && switchFrame(frames[frameIndex + 1])
+              }
+            >
+              <ChevronRight size={17} />
+            </button>
+          </div>
+          <div className="editor-frame-counter" style={{ borderTop: "none", padding: 0 }}>
+            <strong>{frameIndex >= 0 ? frameIndex + 1 : "—"}</strong>
+            <span>/ {frames.length} cameras</span>
+          </div>
         </div>
       </footer>
     </div>

@@ -323,6 +323,7 @@ def _list_official_cache_frame_samples(
     dataset: str | None,
     limit: int,
     offset: int,
+    sequence_id: str | None = None,
 ) -> RealDatasetFrameSampleList | None:
     for cache_dataset, cache_split, root in _official_cache_roots(service, dataset, split):
         images, objects_by_image = _load_official_cache(str(root))
@@ -342,6 +343,8 @@ def _list_official_cache_frame_samples(
                 objects=objects_by_image.get(source_image_id, []),
             )
             if contract is None or contract.sequence_id is None or contract.frame_sample_id is None:
+                continue
+            if sequence_id and contract.sequence_id != sequence_id:
                 continue
             grouped[(contract.sequence_id, contract.frame_sample_id)].append(contract)
             classes.update(label.class_name for label in contract.labels)
@@ -569,10 +572,13 @@ async def _list_database_frame_samples(
     dataset: str | None,
     limit: int,
     offset: int,
+    sequence_id: str | None = None,
 ) -> RealDatasetFrameSampleList:
     selected_split = split or service.default_split
     base_conditions = list(_database_dataset_conditions(service, dataset))
     frame_conditions = [*base_conditions, _database_frame_split_condition(selected_split)]
+    if sequence_id:
+        frame_conditions.append(QAImage.storage_key.like(f"%/frames/{sequence_id}/%"))
     frame_group_key = func.regexp_replace(QAImage.storage_key, r"/[^/]+$", "")
     group_keys = (
         await session.scalars(
@@ -879,7 +885,8 @@ async def list_real_dataset_frame_samples(
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
     split: str | None = Query(default=None),
     dataset: str | None = Query(default=None),
-    limit: int = Query(default=8, ge=1, le=50),
+    sequence_id: str | None = Query(default=None),
+    limit: int = Query(default=8, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_db_session),
 ) -> RealDatasetFrameSampleList:
@@ -896,6 +903,7 @@ async def list_real_dataset_frame_samples(
                         dataset=dataset,
                         limit=limit,
                         offset=offset,
+                        sequence_id=sequence_id,
                     ),
                     timeout=_DATABASE_LIST_TIMEOUT_SECONDS,
                 )
@@ -909,6 +917,7 @@ async def list_real_dataset_frame_samples(
                 dataset=dataset,
                 limit=limit,
                 offset=offset,
+                sequence_id=sequence_id,
             )
             if cached is not None:
                 return cached
@@ -919,6 +928,7 @@ async def list_real_dataset_frame_samples(
                 dataset=dataset,
                 limit=limit,
                 offset=offset,
+                sequence_id=sequence_id,
             )
         return await _list_filesystem_frame_samples(session, service, split=split, limit=limit, offset=offset)
     except (FileNotFoundError, YoloDatasetLayoutError) as error:

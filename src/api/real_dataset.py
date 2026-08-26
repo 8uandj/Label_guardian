@@ -1,8 +1,9 @@
 """Dataset browsing, Agent evaluation and built-in annotation editor endpoints."""
 
 import asyncio
-import json
 import io
+import json
+import logging
 import mimetypes
 import os
 import uuid
@@ -13,10 +14,10 @@ from pathlib import Path, PurePosixPath
 from typing import Annotated, cast
 from urllib.parse import urlparse
 
-from PIL import Image
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from google.api_core.exceptions import NotFound
+from PIL import Image
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +43,8 @@ from src.services.google_cloud import create_gcs_storage_client
 from src.services.ingestion.yolo_detection_adapter import YoloDatasetLayoutError
 from src.services.real_dataset_qa_service import RealDatasetQaService
 from src.services.real_dataset_service import RealDatasetService
+
+logger = logging.getLogger(__name__)
 
 _process_gcs_client = None
 
@@ -496,7 +499,7 @@ def _stream_gcs_image(image: QAImage) -> tuple[Iterator[bytes], str, dict[str, s
     headers = {"Cache-Control": "private, max-age=31536000, immutable"}
     if blob.etag:
         headers["ETag"] = blob.etag
-    
+
     filename = getattr(image, "storage_key", None) or getattr(image, "filename", None) or ""
     content_type = blob.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
     return chunks(), content_type, headers
@@ -952,6 +955,7 @@ async def list_real_dataset_frame_samples(
     try:
         if service.dataset_backend == "database":
             selected_split = _selected_split(split, dataset, service)
+            last_db_result: RealDatasetFrameSampleList | None = None
             try:
                 result = await asyncio.wait_for(
                     _list_database_frame_samples(
@@ -967,9 +971,21 @@ async def list_real_dataset_frame_samples(
                 )
                 if result.count > 0:
                     return result
+                last_db_result = result
             except TimeoutError:
+                logger.warning(
+                    "frame-samples DB query timed out for split=%s dataset=%s",
+                    selected_split,
+                    dataset,
+                )
                 await session.rollback()
-                pass
+            except Exception:
+                logger.exception(
+                    "frame-samples DB query failed for split=%s dataset=%s",
+                    selected_split,
+                    dataset,
+                )
+                await session.rollback()
             cached = _list_official_cache_frame_samples(
                 service,
                 split=selected_split,
@@ -980,14 +996,21 @@ async def list_real_dataset_frame_samples(
             )
             if cached is not None:
                 return cached
-            return await _list_database_frame_samples(
-                session,
-                service,
+            # Return cached empty DB result or a safe synthetic empty list so the
+            # frontend always gets a valid 200 instead of a crash-induced 500.
+            if last_db_result is not None:
+                return last_db_result
+            return RealDatasetFrameSampleList(
+                count=0,
+                image_count=0,
+                results=[],
                 split=selected_split,
                 dataset=dataset,
                 limit=limit,
                 offset=offset,
-                sequence_id=sequence_id,
+                available_splits=[selected_split],
+                available_datasets=["nuscenes", "kitti"],
+                classes=[],
             )
         return await _list_filesystem_frame_samples(session, service, split=split, limit=limit, offset=offset)
     except (FileNotFoundError, YoloDatasetLayoutError) as error:
@@ -1080,7 +1103,7 @@ async def get_real_dataset_image_content(
                     return await _serve_generated_thumbnail(path, thumb_path)
                 return FileResponse(path, media_type=media_type, headers={"Cache-Control": "private, max-age=31536000, immutable"})
             image_row = await _get_database_image_row(session, service, image_id, split=split)
-            
+
             if is_thumbnail:
                 async with _cache_locks[f"thumb_{image_id}"]:
                     if thumb_path.exists():
@@ -1097,14 +1120,14 @@ async def get_real_dataset_image_content(
                     os.replace(tmp_path, thumb_path)
                 background_tasks.add_task(_evict_cache_if_needed)
                 return FileResponse(thumb_path, media_type="image/webp", headers={"Cache-Control": "private, max-age=31536000, immutable"})
-            
+
             import pathlib
             ext = pathlib.Path(image_row.filename).suffix if hasattr(image_row, "filename") and image_row.filename else ".jpg"
             full_path = _gcs_cache_root() / "original" / f"{image_id}{ext}"
-            
+
             import mimetypes
             content_type = mimetypes.guess_type(image_row.filename)[0] if hasattr(image_row, "filename") and image_row.filename else "image/jpeg"
-            
+
             async with _cache_locks[f"full_{image_id}"]:
                 if full_path.exists():
                     try:
@@ -1112,10 +1135,10 @@ async def get_real_dataset_image_content(
                     except OSError:
                         pass
                     return FileResponse(full_path, media_type=content_type, headers={"Cache-Control": "private, max-age=31536000, immutable"})
-                    
+
                 data, dl_content_type = await asyncio.to_thread(_download_gcs_image, image_row)
                 content_type = dl_content_type or content_type
-                
+
                 try:
                     full_path.parent.mkdir(parents=True, exist_ok=True)
                     tmp_path = full_path.with_name(f"{full_path.name}.tmp-{uuid.uuid4()}")
@@ -1125,7 +1148,7 @@ async def get_real_dataset_image_content(
                 except Exception as e:
                     import logging
                     logging.warning(f"Failed to cache full image to disk: {e}")
-                    
+
                 return Response(content=data, media_type=content_type, headers={"Cache-Control": "private, max-age=31536000, immutable"})
         path = service.image_path(split, image_id)
         if is_thumbnail:

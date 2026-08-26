@@ -102,7 +102,7 @@ _CAMERA_ORDER = {
     "CAM_FRONT_LEFT": 5,
 }
 _DEFAULT_GCS_CACHE_ROOT = Path("/app/data")
-_DATABASE_LIST_TIMEOUT_SECONDS = 5.0
+_DATABASE_LIST_TIMEOUT_SECONDS = 20.0
 
 
 def _not_found(error: Exception) -> HTTPException:
@@ -660,11 +660,15 @@ async def _list_database_frame_samples(
         if group_keys
         else []
     )
+    # Fetch a small distinct sample of storage_key/filename/dataset rows to
+    # compute available_splits and available_datasets. Using DISTINCT + LIMIT
+    # avoids a full table scan over 1 000+ rows on a remote Supabase pooler.
     metadata_rows = (
         await session.execute(
-            select(QAImage.storage_key, QAImage.filename, QAImage.dataset).where(
-                *_database_dataset_conditions(service, dataset)
-            )
+            select(QAImage.storage_key, QAImage.filename, QAImage.dataset)
+            .where(*_database_dataset_conditions(service, dataset))
+            .distinct(QAImage.dataset, QAImage.release)
+            .limit(50)
         )
     ).all()
     grouped: dict[tuple[str, str], list[tuple[QAImage, str]]] = {}
@@ -810,9 +814,10 @@ async def _list_database_images(
     split_conditions = [*base_conditions, _database_image_split_condition(selected_split)]
     metadata_rows = (
         await session.execute(
-            select(QAImage.storage_key, QAImage.filename, QAImage.dataset).where(
-                *_database_dataset_conditions(service, dataset)
-            )
+            select(QAImage.storage_key, QAImage.filename, QAImage.dataset)
+            .where(*_database_dataset_conditions(service, dataset))
+            .distinct(QAImage.dataset, QAImage.release)
+            .limit(50)
         )
     ).all()
     available_splits = sorted(

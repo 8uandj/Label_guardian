@@ -48,3 +48,21 @@ test("successful authentication navigates to the overview", () => {
 
   assert.match(appSource, /await auth\.signIn\(email, password\);[\s\S]*?pathForDatasetView\("overview", cloudDatasetId\)/);
 });
+
+test("mock and Supabase login modes share the complete visual panel", () => {
+  const mockLoginSource = readFileSync(new URL("../src/components/layout.tsx", import.meta.url), "utf8");
+  const supabaseLoginSource = readFileSync(
+    new URL("../src/components/AuthenticatedLoginScreen.tsx", import.meta.url),
+    "utf8",
+  );
+  const visualPanelSource = readFileSync(
+    new URL("../src/components/LoginVisualPanel.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(mockLoginSource, /<LoginVisualPanel \/>/);
+  assert.match(supabaseLoginSource, /<LoginVisualPanel \/>/);
+  assert.match(visualPanelSource, /className="visual-status"/);
+  assert.match(visualPanelSource, /Protect every label\./);
+  assert.match(visualPanelSource, /className="visual-metrics"/);
+});

@@ -1,6 +1,7 @@
 import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useState, type CSSProperties, type FormEvent } from "react";
 import authBackground from "../data/background.png";
+import { LoginVisualPanel } from "./LoginVisualPanel";
 
 export function AuthenticatedLoginScreen({
   loading,
@@ -113,13 +114,7 @@ export function AuthenticatedLoginScreen({
             <p className="login-footnote">Identity by Supabase Auth · Roles enforced by Label Guardian API</p>
           </div>
         </section>
-        <aside className="login-visual" aria-label="Label Guardian secure workspace">
-          <div className="login-visual-overlay" />
-          <div className="login-visual-content">
-            <span>Role-based annotation QA</span>
-            <h2>Protect datasets, decisions and revision history.</h2>
-          </div>
-        </aside>
+        <LoginVisualPanel />
       </div>
     </div>
   );

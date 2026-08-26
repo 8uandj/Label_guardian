@@ -33,12 +33,15 @@ test("application sidebar expands on hover and omits the API status card", () =>
   assert.doesNotMatch(layoutSource, /Private GCS dataset/);
 });
 
-test("all application scrollbars use the Editor palette", () => {
+test("all application scrollbars use semantic surface tokens", () => {
   const baseStyles = readSource("../src/styles/base.css");
 
   assert.match(baseStyles, /\*\s*{[^}]*scrollbar-width: thin;/);
-  assert.match(baseStyles, /scrollbar-color: #34445c #0b111a;/);
-  assert.match(baseStyles, /\*::-webkit-scrollbar-thumb\s*{[^}]*background: #34445c;/);
+  assert.match(baseStyles, /scrollbar-color: var\(--color-surface-3\) var\(--color-canvas\);/);
+  assert.match(
+    baseStyles,
+    /\*::-webkit-scrollbar-thumb\s*{[^}]*background: var\(--color-surface-3\);/,
+  );
 });
 
 test("QA Cases omits implementation and reviewer context chips", () => {
@@ -79,11 +82,11 @@ test("QA case risk filters use bounded numeric inputs", () => {
   }
 });
 
-test("API dataset filter is interactive", () => {
+test("API dataset filter updates the URL-scoped dataset", () => {
   const apiQueueSource = readSource("../src/features/qa-queue/ApiQAQueueView.tsx");
 
-  assert.match(apiQueueSource, /value={datasetFilter}/);
-  assert.match(apiQueueSource, /setDatasetFilter\(event\.target\.value\)/);
+  assert.match(apiQueueSource, /value={scopedDataset}/);
+  assert.match(apiQueueSource, /setSearchParameters\(\{ dataset: event\.target\.value, split: scopedSplit \}\)/);
   assert.doesNotMatch(apiQueueSource, /<select value="active" disabled>/);
 });
 

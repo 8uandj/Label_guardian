@@ -35,13 +35,13 @@ export function useUpdateApplicationUserRoleMutation() {
 }
 
 export function useQaCasesQuery(
-  filters: { split?: string; sourceImageId?: string } = {},
+  filters: { split?: string; datasetId?: string; sourceImageId?: string } = {},
   enabled = true,
 ) {
   return useQuery({
     queryKey: filters.sourceImageId
       ? apiQueryKeys.qaCasesForImage(filters.split, filters.sourceImageId)
-      : apiQueryKeys.qaCases,
+      : [...apiQueryKeys.qaCases, filters.datasetId, filters.split],
     queryFn: ({ signal }) => labelGuardianApiV1.listQaCases(signal, filters),
     enabled,
   });

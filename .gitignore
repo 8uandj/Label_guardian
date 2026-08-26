@@ -79,3 +79,51 @@ out/
 # AI logs — tracked structure, ignored content
 .ai-log/*.jsonl
 .ai-log/archive/
+
+# Design Hooks and Agent Skills Plugins (impeccable & ux-ui-agent-skills)
+.agents/skills/
+.claude/settings.local.json
+.claude/skills/
+.cursor/agents/
+.cursor/skills/
+.gemini/skills/
+.github/agents/
+.github/hooks/impeccable.json
+.github/skills/
+CLAUDE.md
+accessibility/
+components/
+content/
+design-systems/
+frameworks/
+taste/
+tokens/
+workflows/
+
+# Plugin scripts (avoid ignoring label_guardian scripts)
+scripts/accuracy_report.mjs
+scripts/axe_audit.mjs
+scripts/build_tokens.mjs
+scripts/check_no_emoji.py
+scripts/contrast.py
+scripts/design_systems.py
+scripts/lint_hardcodes.py
+scripts/lint_taste.py
+scripts/measure_render.mjs
+scripts/scaffold_component.py
+scripts/taste_audit.mjs
+scripts/validate_component_spec.py
+scripts/validate_contrast.py
+scripts/validate_theme_refs.py
+scripts/validate_tokens.py
+scripts/verify_focustrap.mjs
+scripts/verify_responsive.mjs
+scripts/verify_rtl.mjs
+scripts/verify_states.mjs
+# Local agent test/utility files
+check_ids.py
+migrate_smoke_to_product.py
+skills-lock.json
+test_kitti_200.json
+test_nuscenes_100.json
+frontend/test/landing-navigation.test.ts

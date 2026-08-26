@@ -1071,7 +1071,6 @@
   min-width: 2px;
   border-radius: inherit;
   background: var(--blue);
-  transition: width 250ms ease;
 }
 
 .progress-critical { background: #e85b70; }

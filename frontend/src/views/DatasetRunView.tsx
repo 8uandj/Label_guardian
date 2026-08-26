@@ -16,7 +16,7 @@ export function DatasetRunView() {
   const [searchParams] = useSearchParams();
   const configuredDataset = cloudDatasets[0];
   const apiDataset = searchParams.get("dataset") || configuredDataset?.id || "nuscenes";
-  const apiSplit = searchParams.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "trainval-full";
+  const apiSplit = searchParams.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "product";
   const apiCasesQuery = useQaCasesQuery({});
   const apiSamplesQuery = useRealDatasetFrameSamplesQuery(apiSplit, 0, apiDataset);
   const apiCases = apiCasesQuery.data?.results ?? [];
@@ -39,7 +39,6 @@ export function DatasetRunView() {
       <div className="page-container view-page dataset-run-page">
         <div className="page-heading">
           <div>
-            <span className="eyebrow">Dataset operations</span>
             <h1>Datasets / Runs</h1>
             <p className="page-description">Theo dõi dataset official từ Supabase metadata và assets cache từ GCS `dataset/official`.</p>
           </div>
@@ -58,7 +57,7 @@ export function DatasetRunView() {
 
         <Card className="privacy-safe-card">
           <div className="privacy-safe-icon">✓</div>
-          <div><strong>Official cloud dataset</strong><p>Backend ưu tiên full split, tự fallback sang smoke khi full chưa publish; ảnh được stream từ local cache đồng bộ từ GCS.</p></div>
+          <div><strong>Official cloud dataset</strong><p>Backend chỉ cung cấp product split chứa ảnh được stream từ local cache đồng bộ từ GCS.</p></div>
           <Badge tone="success">Read-only demo</Badge>
         </Card>
 
@@ -71,20 +70,20 @@ export function DatasetRunView() {
 
         <div className="dataset-run-grid">
           <Card className="qa-run-progress-card">
-            <div className="qa-run-heading"><SectionHeading eyebrow="Current serving state" title="Full-first smoke fallback" description="Dùng full ngay khi metadata xuất hiện; hiện tại backend đang trả split khả dụng." /><Badge tone={activeSplit === apiSplit ? "success" : "info"}>{activeSplit === apiSplit ? "Full ready" : "Smoke fallback"}</Badge></div>
+            <div className="qa-run-heading"><SectionHeading title="Product split only" description="Dùng product split đã qua xử lý ngay khi metadata xuất hiện." /><Badge tone={activeSplit === apiSplit ? "success" : "info"}>{activeSplit === apiSplit ? "Product ready" : "Fallback"}</Badge></div>
             <div className="qa-run-progress-value"><strong>{apiCases.length ? Math.round((reviewed / apiCases.length) * 100) : 100}%</strong><span>{reviewed}/{apiCases.length} QA cases reviewed</span></div>
             <div className="progress-track qa-run-track"><div className="progress-fill progress-blue" style={{ width: `${apiCases.length ? Math.round((reviewed / apiCases.length) * 100) : 100}%` }} /></div>
             <div className="qa-run-meta"><span>Dataset <strong>{apiDataset}</strong></span><span>Split <strong>{activeSplit}</strong></span><span>Sequences <strong>{Object.keys(sequenceCounts).length}</strong></span><span>Source <strong>Supabase + GCS cache</strong></span></div>
           </Card>
 
           <Card className="qa-run-config-card">
-            <SectionHeading eyebrow="QA case profile" title="Risk và class đang phát sinh" description="Tóm tắt từ các case thật trong PostgreSQL." />
+            <SectionHeading title="Risk và class đang phát sinh" description="Tóm tắt từ các case thật trong PostgreSQL." />
             <div className="qa-run-config-list"><div><span>High risk</span><strong>{highRisk}</strong></div><div><span>Unreviewed</span><strong>{apiCases.filter((qaCase) => qaCase.status === "unreviewed").length}</strong></div><div><span>Top class</span><strong>{Object.entries(classCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "—"}</strong></div><div><span>Available splits</span><strong>{apiSamples?.availableSplits.join(", ") ?? activeSplit}</strong></div></div>
           </Card>
         </div>
 
         <Card className="dataset-scene-card">
-          <SectionHeading eyebrow="Dataset scope" title="Sequences có QA case" description="Dữ liệu thật đang được backend trả cho màn demo." />
+          <SectionHeading title="Sequences có QA case" description="Dữ liệu thật đang được backend trả cho màn demo." />
           <div className="dataset-scene-list">{Object.entries(sequenceCounts).sort(([, first], [, second]) => second - first).map(([sequence, count]) => <div className="dataset-scene-row" key={sequence}><div><strong>{sequence}</strong><small>{apiDataset} · {activeSplit}</small></div><span>{count} QA cases</span><span>{apiCases.filter((qaCase) => qaCase.sequenceId === sequence && qaCase.riskScore >= 80).length} high risk</span><Badge tone="success">official</Badge></div>)}</div>
         </Card>
       </div>
@@ -106,7 +105,6 @@ export function DatasetRunView() {
     <div className="page-container view-page dataset-run-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Dataset operations</span>
           <h1>Datasets / Runs</h1>
           <p className="page-description">Theo dõi phiên bản dataset, phạm vi frame và tiến trình chạy QA mô phỏng trước khi kết nối backend thật.</p>
         </div>
@@ -131,7 +129,7 @@ export function DatasetRunView() {
 
       <div className="dataset-run-grid">
         <Card className="qa-run-progress-card">
-          <div className="qa-run-heading"><SectionHeading eyebrow="Mock execution" title="QA run progress" description="Tiến trình giả lập theo từng bước 25%; không chạy model thật." /><Badge tone={run.status === "completed" ? "success" : run.status === "running" ? "info" : "neutral"}>{run.status === "completed" ? "Completed" : run.status === "running" ? "Running" : "Ready"}</Badge></div>
+          <div className="qa-run-heading"><SectionHeading title="QA run progress" description="Tiến trình giả lập theo từng bước 25%; không chạy model thật." /><Badge tone={run.status === "completed" ? "success" : run.status === "running" ? "info" : "neutral"}>{run.status === "completed" ? "Completed" : run.status === "running" ? "Running" : "Ready"}</Badge></div>
           <div className="qa-run-progress-value"><strong>{run.progress}%</strong><span>{run.processedFrames}/{run.totalFrames} frames</span></div>
           <div className="progress-track qa-run-track"><div className="progress-fill progress-blue" style={{ width: `${run.progress}%` }} /></div>
           <div className="qa-run-actions">
@@ -142,13 +140,13 @@ export function DatasetRunView() {
         </Card>
 
         <Card className="qa-run-config-card">
-          <SectionHeading eyebrow="Resolved configuration" title="Model và rules đang dùng" description="Snapshot cấu hình mock được gắn vào run khi bắt đầu." />
+          <SectionHeading title="Model và rules đang dùng" description="Snapshot cấu hình mock được gắn vào run khi bắt đầu." />
           <div className="qa-run-config-list"><div><span>Model</span><strong>{activeModels.map((model) => model.version).join(", ") || "No model enabled"}</strong></div><div><span>Rules</span><strong>{activeRules.length} enabled</strong></div><div><span>Rule snapshot</span><strong>{run.ruleVersion}</strong></div><div><span>Privacy</span><strong>{dataset.anonymized ? "Anonymized" : "Review required"}</strong></div></div>
         </Card>
       </div>
 
       <Card className="dataset-scene-card">
-        <SectionHeading eyebrow="Dataset scope" title="Scenes trong version đang chọn" description="Thông tin read-only lấy từ mock dataset manifest." />
+        <SectionHeading title="Scenes trong version đang chọn" description="Thông tin read-only lấy từ mock dataset manifest." />
         <div className="dataset-scene-list">{scenes.map((scene) => { const sceneFrames = frames.filter((frame) => frame.sceneId === scene.id); const sceneAnnotations = annotations.filter((annotation) => sceneFrames.some((frame) => frame.id === annotation.frameId)); return <div className="dataset-scene-row" key={scene.id}><div><strong>{scene.name}</strong><small>{scene.location} · {scene.weather}</small></div><span>{sceneFrames.length} frames</span><span>{sceneAnnotations.length} annotations</span><Badge tone="success">{scene.annotatorId}</Badge></div>; })}</div>
       </Card>
     </div>

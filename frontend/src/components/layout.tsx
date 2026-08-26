@@ -7,6 +7,7 @@ import {
   Check,
   Database,
   GitBranch,
+  Home,
   LayoutDashboard,
   ListChecks,
   Settings,
@@ -121,6 +122,16 @@ export function AppShell({
         </div>
 
         <div className="topbar-actions">
+          <a
+            className="workspace-home-link"
+            href="/"
+            aria-label="Back to Label Guardian landing page"
+            title="Back to landing page"
+          >
+            <Home size={15} aria-hidden="true" />
+            <span>Landing</span>
+          </a>
+
           {!apiDataSourceEnabled ? <label className="dataset-switcher">
             <span className="sr-only">Dataset đang chọn</span>
             <Database size={15} aria-hidden="true" />
@@ -349,10 +360,10 @@ export function MockLoginScreen({
     >
       <div className="mock-login-card">
         <section className="login-form-panel">
-          <header className="mock-login-brand">
+          <a className="mock-login-brand" href="/" aria-label="Back to Label Guardian landing page">
             <span className="login-brand-mark"><ShieldCheck size={21} strokeWidth={2.2} /></span>
             <span className="login-brand-name">Label Guardian</span>
-          </header>
+          </a>
 
           <div className={`login-form-content login-form-content-${mode}`} key={mode}>
             <span className="login-eyebrow">Secure perception QA</span>

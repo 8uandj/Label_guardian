@@ -99,8 +99,7 @@
 }
 
 .architecture-ownership-strip > div:first-child {
-  border-color: #9fcaf7;
-  box-shadow: inset 3px 0 0 var(--blue);
+  border-color: var(--color-brand);
 }
 
 .architecture-ownership-strip strong {

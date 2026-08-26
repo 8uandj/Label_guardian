@@ -381,7 +381,7 @@
 
 .pipeline-trigger-form input:focus,
 .pipeline-trigger-form select:focus {
-  border-color: #8b5cf6;
+  border-color: var(--color-brand);
   outline: 2px solid rgba(139, 92, 246, 0.22);
 }
 
@@ -441,7 +441,7 @@
 }
 
 .pipeline-flow-node.is-active {
-  border-color: #8b5cf6;
+  border-color: var(--color-brand);
   background: #171e31;
 }
 

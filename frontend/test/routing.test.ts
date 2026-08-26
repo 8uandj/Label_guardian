@@ -9,6 +9,7 @@ import {
 
 test("clean URLs map to the expected application views", () => {
   assert.equal(viewFromPath("/"), "overview");
+  assert.equal(viewFromPath("/overview"), "overview");
   assert.equal(viewFromPath("/qa-queue"), "qa-queue");
   assert.equal(viewFromPath("/qa-cases"), "qa-cases");
   assert.equal(viewFromPath("/real-data"), "overview");
@@ -17,7 +18,7 @@ test("clean URLs map to the expected application views", () => {
 });
 
 test("application views resolve to React Router paths", () => {
-  assert.equal(pathForView("overview"), "/");
+  assert.equal(pathForView("overview"), "/overview");
   assert.equal(pathForView("qa-queue"), "/qa-queue");
   assert.equal(pathForView("qa-cases"), "/qa-cases");
   assert.equal(pathForView("reports"), "/reports");
@@ -34,7 +35,8 @@ test("top-level API navigation keeps only the dataset scope", () => {
 test("overview, reports and dataset runs render views without API-mode redirects", () => {
   const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 
-  assert.match(appSource, /path="\/"[\s\S]*?<OverviewView/);
+  assert.match(appSource, /location\.pathname === "\/"[\s\S]*?<LandingPage/);
+  assert.match(appSource, /path="\/overview"[\s\S]*?<OverviewView/);
   assert.match(appSource, /path="\/reports" element={<ReportsView state={state} \/>}/);
   assert.match(appSource, /path="\/dataset-runs" element={<DatasetRunView \/>}/);
   assert.doesNotMatch(appSource, /path="\/reports"[^\n]*<Navigate/);

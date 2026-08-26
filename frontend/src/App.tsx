@@ -18,6 +18,7 @@ import { ReportsView } from "./views/ReportsView";
 import { DatasetRunView } from "./views/DatasetRunView";
 import { PipelineView } from "./views/PipelineView";
 import { SettingsView } from "./views/SettingsView";
+import { LandingPage } from "./views/LandingPage";
 import { useMockData } from "./state/MockDataProvider";
 import { isApiDataSourceEnabled } from "./api/labelGuardianApi";
 import "./styles/index.css";
@@ -52,6 +53,10 @@ function App() {
     ? cloudDatasets.find((dataset) => dataset.id === cloudDatasetId) ?? cloudDatasets[0]
     : mockSelectedDataset;
   const datasets = apiDataSourceEnabled ? cloudDatasets : state.datasets;
+
+  if (location.pathname === "/") {
+    return <LandingPage />;
+  }
 
   const navigateToView = (view: PrimaryViewId) => {
     const path = pathForView(view);
@@ -205,7 +210,7 @@ function App() {
       >
         <Routes>
           <Route
-            path="/"
+            path="/overview"
             element={
               <OverviewView
                 state={state}
@@ -214,7 +219,6 @@ function App() {
               />
             }
           />
-          <Route path="/overview" element={<Navigate to="/" replace />} />
           <Route path="/qa-queue" element={<QAQueueView onOpenFinding={navigateToCase} onOpenEditor={navigateToEditor} />} />
           <Route path="/qa-cases" element={<QACasesView onOpenFinding={navigateToCase} onOpenEditor={navigateToEditor} />} />
           <Route path="/real-data" element={<Navigate to="/qa-queue?source=dataset&split=val" replace />} />

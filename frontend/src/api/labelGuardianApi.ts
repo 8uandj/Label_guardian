@@ -127,10 +127,11 @@ export const labelGuardianApiV1 = {
 
   listQaCases(
     signal?: AbortSignal,
-    filters: { split?: string; sourceImageId?: string } = {},
+    filters: { split?: string; datasetId?: string; sourceImageId?: string } = {},
   ): Promise<QaCaseListDto> {
     const parameters = new URLSearchParams({ limit: "200" });
     if (filters.split) parameters.set("split", filters.split);
+    if (filters.datasetId) parameters.set("datasetId", filters.datasetId);
     if (filters.sourceImageId) parameters.set("sourceImageId", filters.sourceImageId);
     return requestJson<QaCaseListDto>(`${API_V1_PREFIX}/qa-cases?${parameters}`, signal);
   },

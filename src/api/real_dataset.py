@@ -53,11 +53,6 @@ _CAMERA_ORDER = {
     "CAM_BACK_LEFT": 4,
     "CAM_FRONT_LEFT": 5,
 }
-_DATASET_DEFAULT_SPLITS = {
-    "kitti": "full",
-    "nuscenes": "trainval-full",
-}
-_FALLBACK_SPLIT = "smoke"
 _DEFAULT_GCS_CACHE_ROOT = Path("/app/data")
 _DATABASE_LIST_TIMEOUT_SECONDS = 5.0
 
@@ -88,7 +83,8 @@ def _database_image_split(image: QAImage, default_split: str) -> str:
 def _dataset_release(service: RealDatasetService, dataset: str | None) -> tuple[str, str]:
     """Resolve the canonical release served for each supported dataset."""
     selected_dataset = (dataset or service.dataset_id).lower()
-    release = "object" if selected_dataset == "kitti" else service.dataset_version
+    # All datasets use 'product' as the canonical release for production data.
+    release = "product"
     return selected_dataset, release
 
 
@@ -102,12 +98,13 @@ def _image_dataset_release(service: RealDatasetService, image: RealDatasetImage)
 def _database_dataset_conditions(
     service: RealDatasetService,
     dataset: str | None = None,
-) -> tuple[object, object]:
-    """Scope metadata reads to the selected dataset and its canonical release."""
-    selected_dataset, release = _dataset_release(service, dataset)
+) -> tuple[object, ...]:
+    """Scope metadata reads to the selected dataset and its release/version."""
+    selected_dataset = (dataset or service.dataset_id).lower()
+    # All datasets use 'product' as the canonical release for production data.
     return (
         func.lower(QAImage.dataset) == selected_dataset,
-        QAImage.release == release,
+        QAImage.release == "product",
     )
 
 
@@ -179,18 +176,10 @@ def _matches_dataset(row: QAImage, dataset: str | None) -> bool:
 
 
 def _selected_split(requested_split: str | None, dataset: str | None, service: RealDatasetService) -> str:
+    """Return the requested split or default to 'product'."""
     if requested_split:
         return requested_split
-    dataset_default = _DATASET_DEFAULT_SPLITS.get((dataset or service.dataset_id).lower())
-    if dataset_default:
-        return dataset_default
-    return cast(str, service.default_split)
-
-
-def _split_candidates(requested_split: str | None, dataset: str | None, service: RealDatasetService) -> list[str]:
-    """Prefer the requested/default full split and fall back to smoke."""
-    selected = _selected_split(requested_split, dataset, service)
-    return [selected] if selected == _FALLBACK_SPLIT else [selected, _FALLBACK_SPLIT]
+    return cast(str, service.default_split) or "product"
 
 
 def _gcs_cache_root() -> Path:
@@ -206,31 +195,23 @@ def _cached_object_path(key: str) -> Path | None:
 
 
 def _official_cache_roots(service: RealDatasetService, dataset: str | None, split: str) -> list[tuple[str, str, Path]]:
+    """Return the canonical cache path(s) for the given dataset and split.
+
+    All datasets use the 'product' canonical layout:
+      kitti   → datasets/official/kitti/product/
+      nuscenes → datasets/official/nuscenes/product/
+    """
     root = _gcs_cache_root() / "datasets" / "official"
     normalized_dataset = (dataset or service.dataset_id).lower()
+    resolved_split = split if split else "product"
     if normalized_dataset == "kitti":
-        if split == _FALLBACK_SPLIT:
-            return [("kitti", _FALLBACK_SPLIT, root / "kitti" / "object" / _FALLBACK_SPLIT)]
-        return [
-            ("kitti", split, root / "kitti" / "object" / split),
-            ("kitti", _FALLBACK_SPLIT, root / "kitti" / "object" / _FALLBACK_SPLIT),
-        ]
+        return [("kitti", resolved_split, root / "kitti" / "product")]
     if normalized_dataset == "nuscenes":
-        version = service.dataset_version if service.dataset_id == "nuscenes" else "v1.0-trainval"
-        if split == _FALLBACK_SPLIT:
-            return [
-                ("nuscenes", _FALLBACK_SPLIT, root / "nuscenes" / version / _FALLBACK_SPLIT),
-                ("nuscenes", _FALLBACK_SPLIT, root / "nuscenes" / "v1.0-mini" / _FALLBACK_SPLIT),
-            ]
-        return [
-            ("nuscenes", split, root / "nuscenes" / version / split),
-            ("nuscenes", _FALLBACK_SPLIT, root / "nuscenes" / version / _FALLBACK_SPLIT),
-            ("nuscenes", _FALLBACK_SPLIT, root / "nuscenes" / "v1.0-mini" / _FALLBACK_SPLIT),
-        ]
+        return [("nuscenes", resolved_split, root / "nuscenes" / "product")]
+    # Fallback: try both datasets in product layout
     return [
-        ("nuscenes", _FALLBACK_SPLIT, root / "nuscenes" / "v1.0-trainval" / _FALLBACK_SPLIT),
-        ("nuscenes", _FALLBACK_SPLIT, root / "nuscenes" / "v1.0-mini" / _FALLBACK_SPLIT),
-        ("kitti", _FALLBACK_SPLIT, root / "kitti" / "object" / _FALLBACK_SPLIT),
+        ("nuscenes", resolved_split, root / "nuscenes" / "product"),
+        ("kitti", resolved_split, root / "kitti" / "product"),
     ]
 
 
@@ -306,7 +287,7 @@ def _cache_image_contract(
         id=source_image_id,
         split=split,
         dataset=dataset,
-        release=root.parent.name if dataset == "nuscenes" else "object",
+        release="product",
         filename=storage_key,
         width=width,
         height=height,
@@ -844,7 +825,10 @@ async def _get_database_image_row(
 ) -> QAImage:
     supported_release = or_(
         and_(func.lower(QAImage.dataset) == "nuscenes", QAImage.release == service.dataset_version),
-        and_(func.lower(QAImage.dataset) == "kitti", QAImage.release == "object"),
+        and_(
+            func.lower(QAImage.dataset) == "kitti",
+            QAImage.release == ("product" if service.dataset_version == "product" else "object")
+        ),
     )
     image = await session.scalar(
         select(QAImage).where(
@@ -902,37 +886,36 @@ async def list_real_dataset_frame_samples(
     """List canonical frame samples, grouping all camera views into one review item."""
     try:
         if service.dataset_backend == "database":
-            candidates = _split_candidates(split, dataset, service)
-            for selected_split in candidates:
-                try:
-                    result = await asyncio.wait_for(
-                        _list_database_frame_samples(
-                            session,
-                            service,
-                            split=selected_split,
-                            dataset=dataset,
-                            limit=limit,
-                            offset=offset,
-                        ),
-                        timeout=_DATABASE_LIST_TIMEOUT_SECONDS,
-                    )
-                    if result.count > 0:
-                        return result
-                except TimeoutError:
-                    pass
-                cached = _list_official_cache_frame_samples(
-                    service,
-                    split=selected_split,
-                    dataset=dataset,
-                    limit=limit,
-                    offset=offset,
+            selected_split = _selected_split(split, dataset, service)
+            try:
+                result = await asyncio.wait_for(
+                    _list_database_frame_samples(
+                        session,
+                        service,
+                        split=selected_split,
+                        dataset=dataset,
+                        limit=limit,
+                        offset=offset,
+                    ),
+                    timeout=_DATABASE_LIST_TIMEOUT_SECONDS,
                 )
-                if cached is not None:
-                    return cached
+                if result.count > 0:
+                    return result
+            except TimeoutError:
+                pass
+            cached = _list_official_cache_frame_samples(
+                service,
+                split=selected_split,
+                dataset=dataset,
+                limit=limit,
+                offset=offset,
+            )
+            if cached is not None:
+                return cached
             return await _list_database_frame_samples(
                 session,
                 service,
-                split=candidates[0],
+                split=selected_split,
                 dataset=dataset,
                 limit=limit,
                 offset=offset,

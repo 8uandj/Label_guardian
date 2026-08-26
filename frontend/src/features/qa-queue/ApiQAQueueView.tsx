@@ -72,10 +72,12 @@ export function ApiQAQueueView({
   const [searchParameters, setSearchParameters] = useSearchParams();
   const auth = useAuth();
   const canReview = auth.user?.role === "reviewer" || auth.user?.role === "admin";
-  const scopedSplit = searchParameters.get("split") ?? undefined;
+  const scopedDataset = searchParameters.get("dataset") ?? "nuscenes";
+  const scopedSplit = searchParameters.get("split") ?? import.meta.env.VITE_DATASET_DEFAULT_SPLIT ?? "product";
   const scopedImageId = searchParameters.get("imageId") ?? undefined;
   const casesQuery = useQaCasesQuery({
     split: scopedSplit,
+    datasetId: scopedDataset,
     sourceImageId: scopedImageId,
   });
   const rawCases = casesQuery.data?.results ?? EMPTY_CASES;
@@ -87,7 +89,6 @@ export function ApiQAQueueView({
     casesQuery.error instanceof Error ? casesQuery.error.message : "";
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ReviewStatus | "all">("all");
-  const [datasetFilter, setDatasetFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<FindingType | "all">("all");
   const [sequenceFilter, setSequenceFilter] = useState("all");
   const [frameFilter, setFrameFilter] = useState("");
@@ -106,15 +107,6 @@ export function ApiQAQueueView({
     () => [...new Set(cases.map((qaCase) => qaCase.className))].sort(),
     [cases],
   );
-  const datasetOptions = useMemo(
-    () =>
-      [...new Map(cases.map((qaCase) => [
-        qaCase.datasetId,
-        `${qaCase.datasetId} · ${qaCase.datasetVersion}`,
-      ])).entries()],
-    [cases],
-  );
-
   const visibleCases = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const normalizedFrame = frameFilter.trim();
@@ -131,7 +123,6 @@ export function ApiQAQueueView({
         .toLowerCase();
       return (
         (!normalizedQuery || searchable.includes(normalizedQuery)) &&
-        (datasetFilter === "all" || qaCase.datasetId === datasetFilter) &&
         (statusFilter === "all" || qaCase.status === statusFilter) &&
         (typeFilter === "all" || qaCase.errorType === typeFilter) &&
         (sequenceFilter === "all" || qaCase.sequenceId === sequenceFilter) &&
@@ -155,7 +146,6 @@ export function ApiQAQueueView({
   }, [
     cases,
     classFilter,
-    datasetFilter,
     frameFilter,
     minimumRisk,
     query,
@@ -175,7 +165,6 @@ export function ApiQAQueueView({
     setPage(1);
   }, [
     classFilter,
-    datasetFilter,
     frameFilter,
     minimumRisk,
     query,
@@ -281,7 +270,6 @@ export function ApiQAQueueView({
   );
   const clearFilters = useCallback(() => {
     setQuery("");
-    setDatasetFilter("all");
     setStatusFilter("all");
     setTypeFilter("all");
     setSequenceFilter("all");
@@ -374,6 +362,24 @@ export function ApiQAQueueView({
         </div>
       ) : null}
       <div className="queue-console-topline">
+        <div className="queue-dataset-selector">
+          <select
+            value={scopedDataset}
+            onChange={(event) => setSearchParameters({ dataset: event.target.value, split: "product" })}
+            aria-label="Chọn dataset"
+          >
+            <option value="nuscenes">nuScenes</option>
+            <option value="kitti">KITTI</option>
+          </select>
+          <select
+            value={scopedSplit}
+            onChange={(event) => setSearchParameters({ dataset: scopedDataset, split: event.target.value })}
+            aria-label="Chọn split"
+          >
+            <option value="product">product (Official)</option>
+            <option value="smoke">smoke (Testing)</option>
+          </select>
+        </div>
         <label className="queue-global-search">
           <span aria-hidden="true">⌕</span>
           <input
@@ -449,13 +455,11 @@ export function ApiQAQueueView({
             <label>
               <span>Dataset</span>
               <select
-                value={datasetFilter}
-                onChange={(event) => setDatasetFilter(event.target.value)}
+                value={scopedDataset}
+                onChange={(event) => setSearchParameters({ dataset: event.target.value, split: "product" })}
               >
-                <option value="all">Tất cả dataset</option>
-                {datasetOptions.map(([datasetId, label]) => (
-                  <option key={datasetId} value={datasetId}>{label}</option>
-                ))}
+                <option value="nuscenes">nuScenes</option>
+                <option value="kitti">KITTI</option>
               </select>
             </label>
             <label>

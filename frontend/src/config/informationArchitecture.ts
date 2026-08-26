@@ -13,7 +13,7 @@ export const appRoutes: AppRouteDefinition[] = [
   {
     id: "overview",
     label: "Tổng quan QA",
-    path: "/",
+    path: "/overview",
     description: "KPI, mức độ rủi ro và tình hình review dataset.",
     phase: "next",
     allowedRoles: ["reviewer", "annotator", "admin"],

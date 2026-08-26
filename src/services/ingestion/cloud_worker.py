@@ -80,7 +80,10 @@ class CloudIngestionRequest(BaseModel):
     def normalized_release(self) -> str:
         if self.release:
             return self.release
-        return "v1.0-mini" if self.dataset_type == "nuscenes" else "object"
+        # KITTI product split uses 'product' release; all others use dataset-specific defaults.
+        if self.dataset_type == "kitti":
+            return "product" if self.split == "product" else "object"
+        return "v1.0-mini"
 
     @property
     def stable_run_id(self) -> str:

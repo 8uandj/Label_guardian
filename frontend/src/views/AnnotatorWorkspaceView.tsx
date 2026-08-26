@@ -157,8 +157,8 @@ export function AnnotatorWorkspaceView({
   onOpenQaCases: (split: string, imageId: string) => void;
 }) {
   const [searchParameters, setSearchParameters] = useSearchParams();
-  const [requestedSplit] = useState(searchParameters.get("split") || "");
-  const selectedDataset = searchParameters.get("dataset") || undefined;
+  const selectedDataset = searchParameters.get("dataset") || "nuscenes";
+  const [requestedSplit] = useState(searchParameters.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "product");
   const [selectedImageId, setSelectedImageId] = useState(
     searchParameters.get("imageId") || "",
   );

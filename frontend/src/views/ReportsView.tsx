@@ -31,7 +31,7 @@ export function ReportsView({ state }: { state: MockState }) {
   const [searchParams] = useSearchParams();
   const configuredDataset = cloudDatasets[0];
   const apiDataset = searchParams.get("dataset") || configuredDataset?.id || "nuscenes";
-  const apiSplit = searchParams.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "trainval-full";
+  const apiSplit = searchParams.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "product";
   const apiCasesQuery = useQaCasesQuery({});
   const apiSamplesQuery = useRealDatasetFrameSamplesQuery(apiSplit, 0, apiDataset);
   const apiCases = apiCasesQuery.data?.results ?? [];

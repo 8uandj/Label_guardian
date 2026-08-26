@@ -45,7 +45,7 @@
 .real-data-metrics span, .real-data-metrics strong { display: block; font-size: 10px; }
 .real-data-metrics span { margin-bottom: 5px; color: var(--muted); text-transform: capitalize; }
 .real-data-issues { display: grid; gap: 8px; }
-.real-data-issues article { padding: 12px; border: 1px solid var(--line); border-left: 3px solid #f59e0b; border-radius: 8px; }
+.real-data-issues article { padding: 12px; border: 1px solid var(--color-line); border-radius: var(--radius-md); }
 .real-data-issues article > div { display: flex; align-items: center; gap: 8px; text-transform: capitalize; }
 .real-data-issues p { margin: 8px 0; font-size: 11px; }
 .real-data-issues small { color: var(--muted); }

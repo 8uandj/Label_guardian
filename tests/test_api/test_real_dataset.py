@@ -10,7 +10,7 @@ from src.api.real_dataset import (
     _frame_sample_identity,
     _image_dataset_release,
     _official_cache_roots,
-    _split_candidates,
+    _selected_split,
     _stream_gcs_image,
 )
 from src.config import Settings
@@ -69,32 +69,28 @@ def test_frame_sample_identity_accepts_canonical_frame_ids(storage_key, expected
     assert _frame_sample_identity(storage_key) == expected
 
 
-@pytest.mark.parametrize(
-    ("dataset", "expected_full"),
-    [("kitti", "full"), ("nuscenes", "trainval-full")],
-)
-def test_cloud_dataset_split_candidates_prefer_full_then_smoke(tmp_path, dataset, expected_full):
+def test_cloud_dataset_split_defaults_to_product(tmp_path):
     service = RealDatasetService(
         tmp_path,
         dataset_backend="database",
         dataset_id="nuscenes",
-        dataset_version="v1.0-trainval",
-        default_split="trainval-full",
+        dataset_version="product",
+        default_split="product",
     )
 
-    assert _split_candidates(None, dataset, service) == [expected_full, "smoke"]
-    assert _split_candidates("smoke", dataset, service) == ["smoke"]
+    assert _selected_split(None, "nuscenes", service) == "product"
+    assert _selected_split(None, "kitti", service) == "product"
+    assert _selected_split("product", "kitti", service) == "product"
 
 
-def test_kitti_cache_roots_prefer_full_then_smoke(tmp_path, monkeypatch):
+def test_kitti_cache_roots_return_product_path(tmp_path, monkeypatch):
     monkeypatch.setenv("LABEL_GUARDIAN_GCS_CACHE_ROOT", str(tmp_path))
     service = RealDatasetService(tmp_path, dataset_backend="database")
 
-    roots = _official_cache_roots(service, "kitti", "full")
+    roots = _official_cache_roots(service, "kitti", "product")
 
     assert [(dataset, split) for dataset, split, _root in roots] == [
-        ("kitti", "full"),
-        ("kitti", "smoke"),
+        ("kitti", "product"),
     ]
 
 
@@ -296,21 +292,21 @@ async def test_database_browse_is_scoped_to_configured_dataset_release_and_split
             [
                 QAImage(
                     source_image_id="wanted-image",
-                    filename="images/smoke/wanted.jpg",
+                    filename="images/product/wanted.jpg",
                     width=100,
                     height=80,
                     dataset="nuscenes",
-                    release="v1.0-mini",
-                    storage_key="datasets/official/nuscenes/v1.0-mini/smoke/frames/scene-1/sample-1/CAM_FRONT.jpg",
+                    release="product",
+                    storage_key="datasets/official/nuscenes/product/frames/scene-1/sample-1/CAM_FRONT.jpg",
                 ),
                 QAImage(
                     source_image_id="wrong-release",
-                    filename="images/smoke/wrong-release.jpg",
+                    filename="images/product/wrong-release.jpg",
                     width=100,
                     height=80,
                     dataset="nuscenes",
                     release="v1.0-trainval",
-                    storage_key="datasets/official/nuscenes/v1.0-trainval/smoke/frames/scene-2/sample-2/CAM_FRONT.jpg",
+                    storage_key="datasets/official/nuscenes/v1.0-trainval/product/frames/scene-2/sample-2/CAM_FRONT.jpg",
                 ),
                 QAImage(
                     source_image_id="wrong-split",
@@ -318,8 +314,8 @@ async def test_database_browse_is_scoped_to_configured_dataset_release_and_split
                     width=100,
                     height=80,
                     dataset="nuscenes",
-                    release="v1.0-mini",
-                    storage_key="datasets/official/nuscenes/v1.0-mini/train/frames/scene-3/sample-3/CAM_FRONT.jpg",
+                    release="product",
+                    storage_key="datasets/official/nuscenes/product/train/frames/scene-3/sample-3/CAM_FRONT.jpg",
                 ),
             ]
         )
@@ -328,9 +324,9 @@ async def test_database_browse_is_scoped_to_configured_dataset_release_and_split
     service = RealDatasetService(
         tmp_path,
         dataset_backend="database",
-        default_split="smoke",
+        default_split="product",
         dataset_id="nuscenes",
-        dataset_version="v1.0-mini",
+        dataset_version="product",
     )
     application = create_app(
         settings=Settings(
@@ -344,10 +340,10 @@ async def test_database_browse_is_scoped_to_configured_dataset_release_and_split
     )
     async with application.router.lifespan_context(application):
         async with AsyncClient(transport=ASGITransport(app=application), base_url="http://test") as client:
-            listed = await client.get("/api/v1/dataset/images?split=smoke")
-            samples = await client.get("/api/v1/dataset/frame-samples?split=smoke")
-            foreign = await client.get("/api/v1/dataset/images/smoke/wrong-release")
-            wrong_split = await client.get("/api/v1/dataset/images/smoke/wrong-split")
+            listed = await client.get("/api/v1/dataset/images?split=product")
+            samples = await client.get("/api/v1/dataset/frame-samples?split=product")
+            foreign = await client.get("/api/v1/dataset/images/product/wrong-release")
+            wrong_split = await client.get("/api/v1/dataset/images/product/wrong-split")
 
     assert listed.status_code == 200
     assert [row["id"] for row in listed.json()["results"]] == ["wanted-image"]

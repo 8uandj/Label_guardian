@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-26T11:42:00Z",
+  "title": "Design System: Label Guardian",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Brand Action Teal",
+        "canonical": "#56c9bf",
+        "tonalRamp": [
+          "#0d302c",
+          "#154d47",
+          "#1e6962",
+          "#26857d",
+          "#3fa69d",
+          "#56c9bf",
+          "#89ded7",
+          "#bdeff0"
+        ]
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Canvas BG",
+        "canonical": "#090d10",
+        "tonalRamp": [
+          "#040608",
+          "#090d10",
+          "#0d1418",
+          "#121b20",
+          "#172329",
+          "#1c2b31",
+          "#414f55",
+          "#8ea1a8"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display Heading",
+        "purpose": "Primary page title, e.g. Overview or Workbench headings."
+      },
+      "body": {
+        "displayName": "Body Copy",
+        "purpose": "Standard paragraphs and descriptive labels."
+      },
+      "mono": {
+        "displayName": "Tabular Monospace",
+        "purpose": "Data coordinates, timestamps, and numbers."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 16px 44px rgba(0, 0, 0, 0.32)",
+        "purpose": "Elevation for dropdowns, popovers, and floating contextual panels."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "Easing curve for focus indicators and hover highlights."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "620px"
+      },
+      {
+        "name": "md",
+        "value": "900px"
+      },
+      {
+        "name": "lg",
+        "value": "1100px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Teal action button for principal user submissions.",
+      "html": "<button class=\"ds-btn-primary\">CONFIRM RUN</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 34px; padding: 0 14px; border: 1px solid #56c9bf; border-radius: 6px; font-family: sans-serif; font-size: 11px; font-weight: 760; background: #56c9bf; color: #090d10; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-primary:hover { background: #348b84; border-color: #348b84; color: #edf5f5; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Supporting action button for tertiary control actions.",
+      "html": "<button class=\"ds-btn-secondary\">DISMISS</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; height: 34px; padding: 0 14px; border: 1px solid rgba(205, 235, 235, 0.18); border-radius: 6px; font-family: sans-serif; font-size: 11px; font-weight: 760; background: #172329; color: #c4d1d3; cursor: pointer; transition: color 120ms ease, border-color 120ms ease, background 120ms ease; } .ds-btn-secondary:hover { border-color: rgba(86, 201, 191, 0.28); color: #56c9bf; background: rgba(86, 201, 191, 0.11); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Perception Sanctuary",
+    "overview": "Label Guardian is a quiet, dark tech workspace optimized for perception data auditing. The design recedes into the background so that label data and bounding box annotations remain the focus of the reviewer's cognitive load.",
+    "keyCharacteristics": [
+      "Low Ambient Light",
+      "Single Source of Color",
+      "Tabular Data Focus",
+      "Hardware-Accelerated Motion"
+    ],
+    "rules": [
+      {
+        "name": "The Rarity of Brand Color Rule",
+        "body": "The Teal accent is never decorative. It should cover less than 5% of any screen, indicating focus, active path, or major action.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Number Rule",
+        "body": "All dataset counters, timestamps, risk values, and bounding box coordinates use monospace text with tabular-nums enabled.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do align all layouts to the 4px grid increments.",
+      "Do use monospace typography for frame indices, sequence numbers, and coordinates.",
+      "Do preserve the dark Canvas color (#090d10) for page bodies."
+    ],
+    "donts": [
+      "Don't use decorative hairline grid backgrounds on text-rich pages.",
+      "Don't use thick colored accent stripes (side-tabs) on card borders.",
+      "Don't animate width, padding, or margin properties during state transitions."
+    ]
+  }
+}

@@ -43,10 +43,10 @@ export function AuthenticatedLoginScreen({
     >
       <div className="mock-login-card">
         <section className="login-form-panel">
-          <header className="mock-login-brand">
+          <a className="mock-login-brand" href="/" aria-label="Back to Label Guardian landing page">
             <span className="login-brand-mark"><ShieldCheck size={21} /></span>
             <span className="login-brand-name">Label Guardian</span>
-          </header>
+          </a>
           <div className={`login-form-content login-form-content-${mode}`} key={mode}>
             <span className="login-eyebrow">Secure perception QA</span>
             <h1>{mode === "login" ? "Welcome back" : "Create account"}<span>.</span></h1>

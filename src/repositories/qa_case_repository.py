@@ -41,11 +41,11 @@ class QaCaseRepository:
         if conditions:
             query = query.where(*conditions)
             count_query = count_query.where(*conditions)
-
         query = query.order_by(QaCase.risk_score.desc(), QaCase.id.asc()).limit(limit).offset(offset)
         count = int((await session.execute(count_query)).scalar_one())
         cases = list((await session.execute(query)).scalars().all())
         return count, cases
+
 
     def add(self, session: AsyncSession, qa_case: QaCase) -> None:
         session.add(qa_case)

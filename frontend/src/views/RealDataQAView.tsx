@@ -119,7 +119,7 @@ function PredictionBox({
 export function RealDataQAView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedDataset = searchParams.get("dataset") || "nuscenes";
-  const requestedSplit = searchParams.get("split") || undefined;
+  const requestedSplit = searchParams.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "product";
   const [offset, setOffset] = useState(0);
   const [selectedId, setSelectedId] = useState<string>();
   const [comparisonMode, setComparisonMode] = useState<

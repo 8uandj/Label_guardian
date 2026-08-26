@@ -35,7 +35,7 @@ export function OverviewView({
   const [searchParams] = useSearchParams();
   const configuredDataset = cloudDatasets[0];
   const apiDataset = searchParams.get("dataset") || configuredDataset?.id || "nuscenes";
-  const apiSplit = searchParams.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "trainval-full";
+  const apiSplit = searchParams.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "product";
   const apiCasesQuery = useQaCasesQuery({});
   const apiSamplesQuery = useRealDatasetFrameSamplesQuery(apiSplit, 0, apiDataset);
   const apiCases = apiCasesQuery.data?.results ?? [];
@@ -65,7 +65,7 @@ export function OverviewView({
     return (
       <div className="page-container view-page qa-control-center">
         <div className="page-heading">
-          <div><span className="eyebrow">QA Control Center</span><h1>Tổng quan QA dataset thật</h1><p className="page-description">Theo dõi metadata Supabase, ảnh từ dataset/official và QA cases được Agent persist.</p></div>
+          <div><h1>Tổng quan QA dataset thật</h1><p className="page-description">Theo dõi metadata Supabase, ảnh từ dataset/official và QA cases được Agent persist.</p></div>
           <div className="page-heading-actions"><Badge tone={apiCasesQuery.isError || apiSamplesQuery.isError ? "high" : "success"}>{loading ? "Đang tải API" : "API dataset online"}</Badge><Button variant="primary" onClick={onOpenQueue}>Mở QA Queue</Button></div>
         </div>
 
@@ -94,23 +94,23 @@ export function OverviewView({
 
         <div className="qa-overview-grid">
           <Card className="qa-run-card">
-            <div className="qa-card-header"><SectionHeading eyebrow="Review queue" title="Tiến độ xử lý" description={`${reviewed} / ${apiCases.length} QA cases đã có quyết định.`} /><Activity size={18} /></div>
+            <div className="qa-card-header"><SectionHeading title="Tiến độ xử lý" description={`${reviewed} / ${apiCases.length} QA cases đã có quyết định.`} /><Activity size={18} /></div>
             <div className="qa-run-progress"><div><strong>{progress}%</strong><span>{apiSamples?.count ?? 0} frame samples · {apiSamples?.imageCount ?? 0} camera views</span></div><div className="progress-track"><div className="progress-fill progress-purple" style={{ width: `${progress}%` }} /></div></div>
             <div className="qa-run-status-grid"><div><span>Unreviewed</span><strong>{apiStatusCounts.unreviewed ?? 0}</strong></div><div><span>In review</span><strong>{apiStatusCounts.in_review ?? 0}</strong></div><div><span>Resolved</span><strong>{reviewed}</strong></div></div>
           </Card>
 
           <Card className="qa-issue-card">
-            <SectionHeading eyebrow="Issue distribution" title="Phân bố lỗi thật" description="Tính từ QA cases đang lưu trong Supabase." />
+            <SectionHeading title="Phân bố lỗi thật" description="Tính từ QA cases đang lưu trong Supabase." />
             <div className="qa-issue-list">{Object.entries(apiTypeCounts).sort(([, a], [, b]) => b - a).map(([type, count]) => <div key={type}><span>{findingTypeLabels[type as FindingType] ?? type}</span><div className="progress-track"><div className="progress-fill progress-purple" style={{ width: `${(count / maxType) * 100}%` }} /></div><strong>{count}</strong></div>)}</div>
           </Card>
 
           <Card className="qa-recent-card">
-            <div className="qa-card-header"><SectionHeading eyebrow="Recent cases" title="Tín hiệu mới nhất" /><Button variant="ghost" size="sm" onClick={onOpenQueue}>Xem queue</Button></div>
+            <div className="qa-card-header"><SectionHeading title="Tín hiệu mới nhất" /><Button variant="ghost" size="sm" onClick={onOpenQueue}>Xem queue</Button></div>
             <div className="qa-findings-table"><div className="qa-findings-head"><span>Case</span><span>Type</span><span>Priority</span><span>Status</span><span>Risk</span></div>{recentCases.map((qaCase) => <button key={qaCase.id} type="button" onClick={() => onOpenQueue()}><span><strong>{qaCase.id}</strong><small>{qaCase.sequenceId} · {qaCase.sourceSplit}</small></span><span>{findingTypeLabels[qaCase.errorType as FindingType] ?? qaCase.errorType}</span><Badge tone={qaCase.priority}>{qaCase.priority}</Badge><StatusBadge status={qaCase.status} /><strong>{qaCase.riskScore}</strong></button>)}</div>
           </Card>
 
           <Card className="qa-review-card">
-            <div className="qa-card-header"><SectionHeading eyebrow="Needs review" title="Case ưu tiên" /><Badge tone={highRisk ? "high" : "success"}>{highRisk} high risk</Badge></div>
+            <div className="qa-card-header"><SectionHeading title="Case ưu tiên" /><Badge tone={highRisk ? "high" : "success"}>{highRisk} high risk</Badge></div>
             <div className="qa-priority-list">{priorityCases.map((qaCase) => <button key={qaCase.id} type="button" onClick={() => onOpenQueue()}><span className={`severity-rail severity-${qaCase.priority}`} /><span><strong>{qaCase.className}</strong><small>{findingTypeLabels[qaCase.errorType as FindingType] ?? qaCase.errorType} · {qaCase.sequenceId}</small></span><span>{qaCase.riskScore}</span></button>)}</div>
           </Card>
         </div>
@@ -146,7 +146,7 @@ export function OverviewView({
   return (
     <div className="page-container view-page qa-control-center">
       <div className="page-heading">
-        <div><span className="eyebrow">QA Control Center</span><h1>Annotation quality overview</h1><p className="page-description">Monitor model-assisted checks, prioritize findings, and track human review for the active 2D dataset.</p></div>
+        <div><h1>Annotation quality overview</h1><p className="page-description">Monitor model-assisted checks, prioritize findings, and track human review for the active 2D dataset.</p></div>
         <div className="page-heading-actions"><Badge tone={state.qaRun.status === "running" ? "info" : "success"}>{state.qaRun.status === "running" ? `QA running · ${state.qaRun.progress}%` : "QA system healthy"}</Badge><Button variant="primary" onClick={onOpenQueue}>Open review queue</Button></div>
       </div>
 
@@ -168,23 +168,23 @@ export function OverviewView({
 
       <div className="qa-overview-grid">
         <Card className="qa-run-card">
-          <div className="qa-card-header"><SectionHeading eyebrow="Current QA run" title="Review progress" description={`${reviewed} of ${findings.length} findings have a human decision.`} /><Activity size={18} /></div>
+          <div className="qa-card-header"><SectionHeading title="Review progress" description={`${reviewed} of ${findings.length} findings have a human decision.`} /><Activity size={18} /></div>
           <div className="qa-run-progress"><div><strong>{progress}%</strong><span>{state.qaRun.processedFrames}/{state.qaRun.totalFrames} frames processed</span></div><div className="progress-track"><div className="progress-fill progress-purple" style={{ width: `${progress}%` }} /></div></div>
           <div className="qa-run-status-grid"><div><span>Unreviewed</span><strong>{statusCounts.unreviewed ?? 0}</strong></div><div><span>In review</span><strong>{statusCounts.in_review ?? 0}</strong></div><div><span>Resolved</span><strong>{reviewed}</strong></div></div>
         </Card>
 
         <Card className="qa-issue-card">
-          <SectionHeading eyebrow="Issue distribution" title="Findings by type" description="Rule and model signals across the active dataset." />
+          <SectionHeading title="Findings by type" description="Rule and model signals across the active dataset." />
           <div className="qa-issue-list">{Object.entries(typeCounts).sort(([, a], [, b]) => b - a).map(([type, count]) => <div key={type}><span>{findingTypeLabels[type as FindingType]}</span><div className="progress-track"><div className="progress-fill progress-purple" style={{ width: `${(count / maxType) * 100}%` }} /></div><strong>{count}</strong></div>)}</div>
         </Card>
 
         <Card className="qa-recent-card">
-          <div className="qa-card-header"><SectionHeading eyebrow="Recent findings" title="Latest QA signals" /><Button variant="ghost" size="sm" onClick={onOpenQueue}>View all</Button></div>
+          <div className="qa-card-header"><SectionHeading title="Latest QA signals" /><Button variant="ghost" size="sm" onClick={onOpenQueue}>View all</Button></div>
           <div className="qa-findings-table"><div className="qa-findings-head"><span>Finding</span><span>Type</span><span>Severity</span><span>Status</span><span>Risk</span></div>{recentFindings.map((finding) => <button key={finding.id} type="button" onClick={() => onOpenFinding?.(finding.id)}><span><strong>{finding.id}</strong><small>{finding.trackId ?? "No track"}</small></span><span>{findingTypeLabels[finding.type]}</span><Badge tone={finding.severity}>{severityLabels[finding.severity]}</Badge><StatusBadge status={finding.status} /><strong>{Math.round(finding.riskScore * 100)}</strong></button>)}</div>
         </Card>
 
         <Card className="qa-review-card">
-          <div className="qa-card-header"><SectionHeading eyebrow="Needs review" title="Priority cases" /><Badge tone={critical ? "high" : "success"}>{critical} high risk</Badge></div>
+          <div className="qa-card-header"><SectionHeading title="Priority cases" /><Badge tone={critical ? "high" : "success"}>{critical} high risk</Badge></div>
           <div className="qa-priority-list">{reviewCases.map((finding) => <button key={finding.id} type="button" onClick={() => onOpenFinding?.(finding.id)}><span className={`severity-rail severity-${finding.severity}`} /><span><strong>{finding.title}</strong><small>{findingTypeLabels[finding.type]} · Risk {finding.riskScore.toFixed(2)}</small></span><span>P{finding.priority}</span></button>)}</div>
         </Card>
       </div>

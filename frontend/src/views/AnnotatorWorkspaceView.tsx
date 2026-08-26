@@ -26,6 +26,7 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
+  type FormEvent,
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -41,6 +42,7 @@ import type {
   RealDatasetLabelDto,
 } from "../api/types";
 import {
+  AuthenticatedImage,
   useAuthenticatedAssetUrl,
 } from "../components/AuthenticatedImage";
 import { labelGuardianApiV1 } from "../api/labelGuardianApi";
@@ -221,6 +223,56 @@ export function AnnotatorWorkspaceView({
     if (nextSample && nextSample.cameras.length > 0 && nextSample.cameras[0]) {
       setSelectedImageId(nextSample.cameras[0].id);
       updateSelectedImageInUrl(nextSample.cameras[0].id);
+    }
+  };
+
+  const activeSampleIndex = useMemo(() => {
+    if (!selectedSampleId) return -1;
+    return filteredSamplesForDropdown.findIndex((s) => s.id === selectedSampleId);
+  }, [filteredSamplesForDropdown, selectedSampleId]);
+
+  const totalFramesInScene = filteredSamplesForDropdown.length;
+  const pageIndex = Math.max(0, Math.floor((activeSampleIndex >= 0 ? activeSampleIndex : 0) / 10));
+  const totalPages = Math.ceil(totalFramesInScene / 10);
+
+  const paginatedSamples = useMemo(() => {
+    return filteredSamplesForDropdown.slice(pageIndex * 10, (pageIndex + 1) * 10);
+  }, [filteredSamplesForDropdown, pageIndex]);
+
+  const startFrame = totalFramesInScene > 0 ? pageIndex * 10 + 1 : 0;
+  const endFrame = Math.min((pageIndex + 1) * 10, totalFramesInScene);
+
+  const [jumpInput, setJumpInput] = useState("");
+
+  const handleJumpSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const val = parseInt(jumpInput, 10);
+    if (!isNaN(val) && val >= 1 && val <= totalFramesInScene) {
+      const targetSample = filteredSamplesForDropdown[val - 1];
+      if (targetSample && targetSample.cameras.length > 0) {
+        switchFrame(targetSample.cameras[0]);
+      }
+    }
+    setJumpInput("");
+  };
+
+  const handlePrevPage = () => {
+    if (pageIndex > 0) {
+      const prevPageFirstSampleIndex = (pageIndex - 1) * 10;
+      const targetSample = filteredSamplesForDropdown[prevPageFirstSampleIndex];
+      if (targetSample && targetSample.cameras.length > 0) {
+        switchFrame(targetSample.cameras[0]);
+      }
+    }
+  };
+
+  const handleNextPage = () => {
+    if (pageIndex < totalPages - 1) {
+      const nextPageFirstSampleIndex = (pageIndex + 1) * 10;
+      const targetSample = filteredSamplesForDropdown[nextPageFirstSampleIndex];
+      if (targetSample && targetSample.cameras.length > 0) {
+        switchFrame(targetSample.cameras[0]);
+      }
     }
   };
   const annotationQuery = useImageAnnotationsQuery(
@@ -1412,86 +1464,120 @@ export function AnnotatorWorkspaceView({
           </div>
         </div>
 
-        {/* Physical Camera Grid */}
-        <div className="editor-camera-grid-physical-container">
-          <div className="editor-camera-grid-physical">
-            {selectedDataset === "nuscenes" && activeSample ? (
-              // NuScenes 3x2 physical camera grid layout
-              (() => {
-                const layoutChannels = [
-                  ["CAM_FRONT_LEFT", "CAM_FRONT", "CAM_FRONT_RIGHT"],
-                  ["CAM_BACK_LEFT", "CAM_BACK", "CAM_BACK_RIGHT"],
-                ];
-                return layoutChannels.flat().map((channel) => {
-                  const camera = activeSample.cameras.find(
-                    (c) => c.cameraChannel === channel,
-                  );
-                  if (!camera) return <div key={channel} style={{ opacity: 0.2 }} className="camera-grid-btn"><span className="btn-channel">{channel.replace("CAM_", "")}</span></div>;
-                  return (
+        {/* 10-Frame Sequence Strip (Middle Section) */}
+        <div className="editor-frame-strip">
+          {paginatedSamples.map((sample, sampleIndex) => {
+            const absoluteFrameNum = pageIndex * 10 + sampleIndex + 1;
+            const isSampleActive = sample.id === selectedSampleId;
+            return (
+              <section 
+                className={`editor-frame-group ${isSampleActive ? "is-active-group" : ""}`} 
+                key={sample.id}
+                style={isSampleActive ? { borderColor: "var(--color-brand, #56c9bf)" } : undefined}
+              >
+                <header>
+                  <strong style={isSampleActive ? { color: "var(--color-brand, #56c9bf)" } : undefined}>
+                    Frame {String(absoluteFrameNum).padStart(2, "0")}
+                  </strong>
+                  <small>{sample.sequenceId}</small>
+                </header>
+                <div className="editor-camera-strip">
+                  {sample.cameras.map((item, cameraIndex) => (
                     <button
-                      key={channel}
-                      className={`camera-grid-btn ${camera.id === frame.id ? "is-active" : ""}`}
+                      className={item.id === frame.id ? "is-active" : ""}
                       type="button"
-                      onClick={() => switchFrame(camera)}
+                      key={item.id}
+                      onClick={() => switchFrame(item)}
                     >
-                      <span className="btn-channel">{channel.replace("CAM_", "")}</span>
-                      <span className="btn-num">{camera.width}x{camera.height}</span>
-                      {dirty && camera.id === frame.id && <i className="modified-dot" />}
+                      <span className="frame-thumb">
+                        <AuthenticatedImage sourcePath={item.imageUrl} alt="" />
+                        {dirty && item.id === frame.id ? <i /> : null}
+                      </span>
+                      <small>
+                        <b>{String(cameraIndex + 1).padStart(2, "0")}</b>
+                        <span>{item.cameraChannel?.replace("CAM_", "") ?? "Camera"}</span>
+                      </small>
                     </button>
-                  );
-                });
-              })()
-            ) : (
-              // KITTI layout or fallback (displays all available cameras for the active frame)
-              (activeSample?.cameras ?? []).map((camera, cameraIdx) => (
-                <button
-                  key={camera.id}
-                  className={`camera-grid-btn ${camera.id === frame.id ? "is-active" : ""}`}
-                  type="button"
-                  onClick={() => switchFrame(camera)}
-                  style={{ gridColumn: "span 3" }} // Span fully across to center it
-                >
-                  <span className="btn-channel">{camera.cameraChannel ?? `CAMERA ${cameraIdx + 1}`}</span>
-                  <span className="btn-num">{camera.width}x{camera.height}</span>
-                  {dirty && camera.id === frame.id && <i className="modified-dot" />}
-                </button>
-              ))
-            )}
-          </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
 
-        {/* Playback Controls and Count */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "8px" }}>
-          <div className="editor-playback-controls">
+        {/* Playback, Page Changer, Jump to Frame, and Counter Controls (Right Column) */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
+          {/* Row 1: Camera Playback & Frame Jump */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <form onSubmit={handleJumpSubmit} className="editor-jump-container" style={{ margin: 0 }}>
+              <input
+                className="editor-jump-input"
+                type="number"
+                min="1"
+                max={totalFramesInScene || 1}
+                placeholder="Jump..."
+                value={jumpInput}
+                onChange={(e) => setJumpInput(e.target.value)}
+                aria-label="Nhập số frame để chuyển nhanh"
+              />
+              <button className="editor-jump-btn" type="submit">Go</button>
+            </form>
+
+            <div className="editor-playback-controls" style={{ display: "flex" }}>
+              <button
+                type="button"
+                disabled={frameIndex <= 0}
+                onClick={() =>
+                  frames[frameIndex - 1] && switchFrame(frames[frameIndex - 1])
+                }
+              >
+                <ChevronLeft size={17} />
+              </button>
+              <button
+                type="button"
+                onClick={() => void annotationQuery.refetch()}
+                title="Reload revision"
+              >
+                <RotateCcw size={17} />
+              </button>
+              <button
+                type="button"
+                disabled={frameIndex < 0 || frameIndex >= frames.length - 1}
+                onClick={() =>
+                  frames[frameIndex + 1] && switchFrame(frames[frameIndex + 1])
+                }
+              >
+                <ChevronRight size={17} />
+              </button>
+            </div>
+          </div>
+
+          {/* Row 2: Page Changer Buttons */}
+          <div className="editor-page-switcher">
             <button
+              className="editor-page-btn"
               type="button"
-              disabled={frameIndex <= 0}
-              onClick={() =>
-                frames[frameIndex - 1] && switchFrame(frames[frameIndex - 1])
-              }
+              disabled={pageIndex === 0}
+              onClick={handlePrevPage}
+              title="Trang trước (10 frames trước)"
             >
-              <ChevronLeft size={17} />
+              &lt; Page
             </button>
             <button
+              className="editor-page-btn"
               type="button"
-              onClick={() => void annotationQuery.refetch()}
-              title="Reload revision"
+              disabled={pageIndex >= totalPages - 1}
+              onClick={handleNextPage}
+              title="Trang sau (10 frames tiếp)"
             >
-              <RotateCcw size={17} />
-            </button>
-            <button
-              type="button"
-              disabled={frameIndex < 0 || frameIndex >= frames.length - 1}
-              onClick={() =>
-                frames[frameIndex + 1] && switchFrame(frames[frameIndex + 1])
-              }
-            >
-              <ChevronRight size={17} />
+              Page &gt;
             </button>
           </div>
+
+          {/* Row 3: Frame Counter (Custom Page Counter format) */}
           <div className="editor-frame-counter" style={{ borderTop: "none", padding: 0 }}>
-            <strong>{frameIndex >= 0 ? frameIndex + 1 : "—"}</strong>
-            <span>/ {frames.length} cameras</span>
+            <strong>{startFrame}-{endFrame}</strong>
+            <span>/ {totalFramesInScene} frames in scene</span>
           </div>
         </div>
       </footer>

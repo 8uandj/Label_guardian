@@ -41,6 +41,13 @@ function App() {
   const [signedInUser, setSignedInUser] = useState<User | null>(null);
   const [localUsers, setLocalUsers] = useState<User[]>([]);
   const [demoMode, setDemoMode] = useState<DemoMode>("ready");
+  const [language, setLanguage] = useState<"en" | "vi">(() => {
+    return (localStorage.getItem("label-guardian-lang") as "en" | "vi") || "en";
+  });
+  const changeLanguage = (lang: "en" | "vi") => {
+    setLanguage(lang);
+    localStorage.setItem("label-guardian-lang", lang);
+  };
   const searchParams = new URLSearchParams(location.search);
   const cloudDatasetId = searchParams.get("dataset") || cloudDatasets[0].id;
   const authUsers = [...state.users, ...localUsers];
@@ -55,7 +62,7 @@ function App() {
   const datasets = apiDataSourceEnabled ? cloudDatasets : state.datasets;
 
   if (location.pathname === "/") {
-    return <LandingPage />;
+    return <LandingPage lang={language} onChangeLang={changeLanguage} />;
   }
 
   const navigateToView = (view: PrimaryViewId) => {
@@ -178,6 +185,8 @@ function App() {
       datasets={datasets}
       routes={appRoutes}
       onNavigate={navigateToView}
+      lang={language}
+      onChangeLang={changeLanguage}
       onRoleChange={(role) => {
         if (auth.enabled) return;
         setSignedInUser((user) => (user ? { ...user, role } : user));

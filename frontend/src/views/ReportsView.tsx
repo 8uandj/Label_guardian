@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import { isApiDataSourceEnabled } from "../api/labelGuardianApi";
 import { useQaCasesQuery, useRealDatasetFrameSamplesQuery } from "../api/queries";
 import { Badge, Button, Card, SectionHeading, StatCard } from "../components/ui";
-import { ApiDemoNotice } from "../components/ApiDemoNotice";
 import { cloudDatasets } from "../config/cloudDataset";
 import type { FindingType, MockState, Severity } from "../domain/types";
 import { MockReportsWorkspace } from "./MockReportsWorkspace";
@@ -133,12 +132,7 @@ export function ReportsView({ state }: { state: MockState }) {
           <div className="page-heading-actions"><Badge tone={apiCasesQuery.isError || apiSamplesQuery.isError ? "high" : "success"}>{apiCasesQuery.isPending ? "Đang tải API" : "Live API"}</Badge><Badge tone="info">{apiSamples?.split ?? apiSplit}</Badge></div>
         </div>
 
-        <ApiDemoNotice
-          loading={apiCasesQuery.isPending || apiSamplesQuery.isPending}
-          hasData={apiCases.length > 0}
-          hasError={apiCasesQuery.isError || apiSamplesQuery.isError}
-          description="Trang báo cáo mẫu vẫn được hiển thị để demo. KPI và phân bố lỗi sẽ được tính lại khi Agent tạo QA cases."
-        />
+
 
         <Card className="report-export-card">
           <div><span className="eyebrow">Report export</span><strong>Xuất snapshot từ QA cases thật</strong><small>File được tạo trong browser từ response API hiện tại.</small></div>

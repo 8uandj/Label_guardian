@@ -26,6 +26,19 @@ import { roleLabels } from "../config/informationArchitecture";
 import authBackground from "../data/background.png";
 import type { Dataset, QaRun, Role, User } from "../domain/types";
 import { Badge, Button } from "./ui";
+import { Logo } from "./Logo";
+
+const routeLabels: Record<PrimaryViewId, { en: string; vi: string }> = {
+  overview: { en: "QA Overview", vi: "Tổng quan QA" },
+  "qa-queue": { en: "QA Queue", vi: "Hàng đợi QA" },
+  "qa-cases": { en: "QA Cases", vi: "Danh sách Case" },
+  "dataset-run": { en: "Datasets & Runs", vi: "Dữ liệu & Tiến trình" },
+  pipeline: { en: "QA Pipeline", vi: "Quy trình QA" },
+  "annotator-workspace": { en: "2D Editor", vi: "Trình sửa 2D" },
+  reports: { en: "Reports", vi: "Báo cáo" },
+  settings: { en: "Settings", vi: "Cài đặt" },
+  "case-detail": { en: "Case Detail", vi: "Chi tiết Case" },
+};
 
 export type PrimaryViewId =
   | "overview"
@@ -76,6 +89,8 @@ interface AppShellProps extends PropsWithChildren {
   onDatasetChange: (datasetId: string) => void;
   onSignOut: () => void;
   onReset: () => void;
+  lang: "en" | "vi";
+  onChangeLang: (lang: "en" | "vi") => void;
 }
 
 export function AppShell({
@@ -92,6 +107,8 @@ export function AppShell({
   onDatasetChange,
   onSignOut,
   onReset,
+  lang,
+  onChangeLang,
   children,
 }: AppShellProps) {
   const [accountOpen, setAccountOpen] = useState(false);
@@ -105,11 +122,13 @@ export function AppShell({
   ) as Array<AppRouteDefinition & { id: PrimaryViewId }>).sort((first, second) => routeOrder[first.id] - routeOrder[second.id]);
   const activeRoute = routes.find((route) => route.id === activeView);
 
+  const t = (en: string, vi: string) => (lang === "en" ? en : vi);
+
   return (
     <div className="app-shell app-shell-dark">
       <header className="topbar app-topbar">
         <div className="topbar-mobile-brand">
-          <div className="brand-mark">LG</div>
+          <Logo size={20} />
           <div>
             <div className="brand-name">Label Guardian</div>
             <div className="brand-subtitle">Perception QA workspace</div>
@@ -117,11 +136,30 @@ export function AppShell({
         </div>
 
         <div className="topbar-context">
-          <span className="eyebrow">AI Label Quality Assurance</span>
-          <strong>{activeRoute?.label ?? "Tổng quan QA"}</strong>
+          <span className="eyebrow">{t("AI Label Quality Assurance", "Đảm bảo chất lượng nhãn AI")}</span>
+          <strong>{activeRoute ? (routeLabels[activeRoute.id as PrimaryViewId]?.[lang] ?? activeRoute.label) : t("QA Overview", "Tổng quan QA")}</strong>
         </div>
 
         <div className="topbar-actions">
+          {/* Topbar Language Switcher */}
+          <div className="topbar-lang-switcher" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", padding: "2px 6px", marginRight: "8px" }}>
+            <button
+              type="button"
+              style={{ background: "none", border: "none", color: lang === "en" ? "var(--color-brand, #56c9bf)" : "rgba(255,255,255,0.45)", cursor: "pointer", fontSize: "11px", fontWeight: 700, padding: "2px 4px" }}
+              onClick={() => onChangeLang("en")}
+            >
+              EN
+            </button>
+            <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "11px" }}>|</span>
+            <button
+              type="button"
+              style={{ background: "none", border: "none", color: lang === "vi" ? "var(--color-brand, #56c9bf)" : "rgba(255,255,255,0.45)", cursor: "pointer", fontSize: "11px", fontWeight: 700, padding: "2px 4px" }}
+              onClick={() => onChangeLang("vi")}
+            >
+              VI
+            </button>
+          </div>
+
           <a
             className="workspace-home-link"
             href="/"
@@ -129,7 +167,7 @@ export function AppShell({
             title="Back to landing page"
           >
             <Home size={15} aria-hidden="true" />
-            <span>Landing</span>
+            <span>{t("Landing", "Trang chủ")}</span>
           </a>
 
           {!apiDataSourceEnabled ? <label className="dataset-switcher">
@@ -198,7 +236,7 @@ export function AppShell({
                   <strong>{activeUser.name}</strong>
                   <span>{activeUser.email}</span>
                 </div>
-                <Badge tone="info">{allowRoleSwitch ? "Mock session" : "Authenticated session"}</Badge>
+                <Badge tone="info">{allowRoleSwitch ? t("Mock session", "Phiên demo") : t("Authenticated session", "Phiên xác thực")}</Badge>
                 {allowRoleSwitch ? (
                   <Button
                     variant="ghost"
@@ -208,7 +246,7 @@ export function AppShell({
                       onReset();
                     }}
                   >
-                    Reset mock data
+                    {t("Reset mock data", "Khôi phục dữ liệu demo")}
                   </Button>
                 ) : null}
                 <Button
@@ -219,7 +257,7 @@ export function AppShell({
                     onSignOut();
                   }}
                 >
-                  Đăng xuất
+                  {t("Log out", "Đăng xuất")}
                 </Button>
               </div>
             ) : null}
@@ -230,7 +268,7 @@ export function AppShell({
       <div className="workspace-layout">
         <aside className="sidebar">
           <div className="sidebar-brand">
-            <div className="brand-mark"><ShieldCheck size={17} /></div>
+            <Logo size={20} />
             <div className="sidebar-brand-copy">
               <div className="brand-name">Label Guardian</div>
               <div className="brand-subtitle">Human-in-the-loop QA</div>
@@ -240,20 +278,21 @@ export function AppShell({
           <nav className="sidebar-nav" aria-label="Điều hướng chính">
             {visibleRoutes.map((route) => {
               const RouteIcon = routeIcons[route.id];
+              const displayLabel = routeLabels[route.id]?.[lang] ?? route.label;
               return (
                 <button
                   className={`sidebar-nav-item ${activeView === route.id ? "is-active" : ""}`}
                   key={route.id}
                   type="button"
-                  aria-label={route.label}
-                  title={route.label}
+                  aria-label={displayLabel}
+                  title={displayLabel}
                   aria-current={activeView === route.id ? "page" : undefined}
                   onClick={() => onNavigate(route.id)}
                 >
                   <span className="sidebar-nav-icon" aria-hidden="true">
                     <RouteIcon size={16} strokeWidth={1.8} />
                   </span>
-                  <span>{route.label}</span>
+                  <span>{displayLabel}</span>
                   {route.id === "qa-cases" && !apiDataSourceEnabled ? <span className="nav-count">6</span> : null}
                 </button>
               );
@@ -269,8 +308,8 @@ export function AppShell({
       </div>
 
       <footer className="footer-bar app-footer">
-        <span>Label Guardian · {apiDataSourceEnabled ? "API V1 production mode" : "Mock-only frontend"}</span>
-        <span>Role: {roleLabels[activeRole]}{apiDataSourceEnabled ? " · Cloud dataset" : ` · Dataset: ${selectedDataset.format}`}</span>
+        <span>Label Guardian · {apiDataSourceEnabled ? t("API V1 production mode", "Chế độ production API V1") : t("Mock-only frontend", "Chế độ demo frontend")}</span>
+        <span>{t("Role", "Vai trò")}: {roleLabels[activeRole]}{apiDataSourceEnabled ? t(" · Cloud dataset", " · Tập dữ liệu cloud") : ` · Dataset: ${selectedDataset.format}`}</span>
       </footer>
     </div>
   );
@@ -361,7 +400,7 @@ export function MockLoginScreen({
       <div className="mock-login-card">
         <section className="login-form-panel">
           <a className="mock-login-brand" href="/" aria-label="Back to Label Guardian landing page">
-            <span className="login-brand-mark"><ShieldCheck size={21} strokeWidth={2.2} /></span>
+            <Logo size={24} />
             <span className="login-brand-name">Label Guardian</span>
           </a>
 
@@ -455,7 +494,7 @@ export function MockLoginScreen({
           <div className="login-visual-content">
             <span className="visual-status"><span /> Live quality intelligence</span>
             <div className="visual-copy">
-              <ShieldCheck size={32} strokeWidth={1.7} />
+              <Logo size={40} />
               <p>Protect every label.<br />Trust every frame.</p>
               <span>AI-assisted review for safer perception datasets.</span>
             </div>

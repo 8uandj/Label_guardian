@@ -210,3 +210,12 @@ export function useRestoreAnnotationsMutation() {
     },
   });
 }
+
+export function usePipelineRunsQuery(enabled = true) {
+  return useQuery({
+    queryKey: ["api-v1", "ingestion", "runs"],
+    queryFn: ({ signal }) => labelGuardianApiV1.listPipelineRuns(signal),
+    enabled,
+  });
+}
+

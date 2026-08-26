@@ -23,15 +23,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-
-const issueTypes = ["Wrong class", "Loose bbox", "Missing label", "Duplicate label"];
-
-const workflowSteps = [
-  { icon: ScanSearch, label: "Triage", meta: "Risk ranked" },
-  { icon: GitCompareArrows, label: "Compare", meta: "Label vs model" },
-  { icon: PencilRuler, label: "Correct", meta: "Edit geometry" },
-  { icon: GitCommitHorizontal, label: "Commit", meta: "New revision" },
-];
+import { Logo } from "../components/Logo";
 
 interface LandingSection {
   id: string;
@@ -40,20 +32,22 @@ interface LandingSection {
   icon: LucideIcon;
 }
 
-const landingSections: LandingSection[] = [
-  { id: "overview", label: "Overview", shortLabel: "Start", icon: LayoutGrid },
-  { id: "signals", label: "Risk signals", shortLabel: "Signals", icon: Radar },
-  { id: "pipeline", label: "QA pipeline", shortLabel: "Pipeline", icon: GitBranch },
-  { id: "review", label: "Review workflow", shortLabel: "Review", icon: UserCheck },
-  { id: "architecture", label: "Architecture", shortLabel: "System", icon: Network },
-];
+function LandingNavigation({ lang, onChangeLang }: { lang: "en" | "vi"; onChangeLang: (lang: "en" | "vi") => void }) {
+  const landingSections: LandingSection[] = [
+    { id: "overview", label: lang === "en" ? "Overview" : "Tổng quan", shortLabel: lang === "en" ? "Start" : "Bắt đầu", icon: LayoutGrid },
+    { id: "signals", label: lang === "en" ? "Risk signals" : "Tín hiệu rủi ro", shortLabel: lang === "en" ? "Signals" : "Tín hiệu", icon: Radar },
+    { id: "pipeline", label: lang === "en" ? "QA pipeline" : "Quy trình QA", shortLabel: lang === "en" ? "Pipeline" : "Quy trình", icon: GitBranch },
+    { id: "review", label: lang === "en" ? "Review workflow" : "Luồng đánh giá", shortLabel: lang === "en" ? "Review" : "Đánh giá", icon: UserCheck },
+    { id: "architecture", label: lang === "en" ? "Architecture" : "Kiến trúc", shortLabel: lang === "en" ? "System" : "Hệ thống", icon: Network },
+  ];
 
-function LandingNavigation() {
   const [activeSection, setActiveSection] = useState(landingSections[0].id);
   const activeIndex = Math.max(0, landingSections.findIndex((section) => section.id === activeSection));
   const active = landingSections[activeIndex];
   const next = landingSections[(activeIndex + 1) % landingSections.length];
   const condensed = activeIndex > 0;
+
+  const t = (en: string, vi: string) => (lang === "en" ? en : vi);
 
   useEffect(() => {
     const targets = landingSections
@@ -104,7 +98,7 @@ function LandingNavigation() {
       window.clearTimeout(restoreScrollTimer);
       observer.disconnect();
     };
-  }, []);
+  }, [lang]);
 
   return (
     <>
@@ -115,7 +109,7 @@ function LandingNavigation() {
         <a className="landing-skip-link" href="#overview">Skip to content</a>
         <nav className="landing-nav" aria-label="Landing navigation">
           <a className="landing-brand" href="#overview">
-            <span className="landing-brand-mark">LG</span>
+            <Logo size={22} />
             <span>Label Guardian</span>
           </a>
 
@@ -135,6 +129,23 @@ function LandingNavigation() {
           </div>
 
           <div className="landing-nav-actions">
+            <div className="landing-lang-switcher" aria-label="Chọn ngôn ngữ">
+              <button
+                type="button"
+                className={`landing-lang-btn ${lang === "en" ? "active" : ""}`}
+                onClick={() => onChangeLang("en")}
+              >
+                EN
+              </button>
+              <span>/</span>
+              <button
+                type="button"
+                className={`landing-lang-btn ${lang === "vi" ? "active" : ""}`}
+                onClick={() => onChangeLang("vi")}
+              >
+                VI
+              </button>
+            </div>
             <a
               className="landing-nav-next"
               href={`#${next.id}`}
@@ -144,7 +155,7 @@ function LandingNavigation() {
               <ChevronDown size={17} aria-hidden="true" />
             </a>
             <a className="landing-nav-action" href="/overview">
-              Open workspace
+              {t("Open workspace", "Mở không gian")}
               <ArrowRight size={16} aria-hidden="true" />
             </a>
           </div>
@@ -182,23 +193,36 @@ function LandingNavigation() {
   );
 }
 
-export function LandingPage() {
+export function LandingPage({ lang, onChangeLang }: { lang: "en" | "vi"; onChangeLang: (lang: "en" | "vi") => void }) {
+  const t = (en: string, vi: string) => (lang === "en" ? en : vi);
+
+  const issueTypes = lang === "en" 
+    ? ["Wrong class", "Loose bbox", "Missing label", "Duplicate label"]
+    : ["Sai lớp đối tượng", "Lệch hộp bao", "Thiếu nhãn", "Lặp nhãn"];
+
+  const workflowSteps = [
+    { icon: ScanSearch, label: t("Triage", "Phân loại"), meta: t("Risk ranked", "Sắp xếp rủi ro") },
+    { icon: GitCompareArrows, label: t("Compare", "So sánh"), meta: t("Label vs model", "Nhãn vs mô hình") },
+    { icon: PencilRuler, label: t("Correct", "Sửa đổi"), meta: t("Edit geometry", "Sửa tọa độ") },
+    { icon: GitCommitHorizontal, label: t("Commit", "Xác nhận"), meta: t("New revision", "Phiên bản mới") },
+  ];
+
   return (
     <main className="landing-page">
-      <LandingNavigation />
+      <LandingNavigation lang={lang} onChangeLang={onChangeLang} />
 
       <section className="landing-hero" id="overview">
         <div className="landing-hero-copy">
-          <p className="landing-kicker">Perception Data QA</p>
-          <h1>Catch label errors before training.</h1>
-          <p>Evidence-led review for autonomous-driving datasets.</p>
+          <p className="landing-kicker">{t("Perception Data QA", "Đảm bảo chất lượng nhãn AI")}</p>
+          <h1>{t("Catch label errors before training.", "Phát hiện lỗi nhãn trước khi training.")}</h1>
+          <p>{t("Evidence-led review for autonomous-driving datasets.", "Đánh giá dựa trên bằng chứng cho dữ liệu xe tự lái.")}</p>
           <div className="landing-hero-actions">
             <a className="landing-primary-action" href="/overview">
-              Open workspace
+              {t("Open workspace", "Mở không gian làm việc")}
               <ArrowRight size={18} aria-hidden="true" />
             </a>
             <a className="landing-secondary-action" href="#pipeline">
-              See pipeline
+              {t("See pipeline", "Xem quy trình")}
             </a>
           </div>
         </div>
@@ -220,8 +244,8 @@ export function LandingPage() {
             <span><Check size={17} /></span>
           </div>
           <div>
-            <strong>Human decides</strong>
-            <small>Every flagged case ends with a reviewer.</small>
+            <strong>{t("Human decides", "Con người phê duyệt")}</strong>
+            <small>{t("Every flagged case ends with a reviewer.", "Mọi trường hợp bị gắn cờ đều do đánh giá viên quyết định.")}</small>
           </div>
         </article>
         <article className="landing-proof-item">
@@ -232,8 +256,8 @@ export function LandingPage() {
             <b>HIGH</b>
           </div>
           <div>
-            <strong>Rules set severity</strong>
-            <small>Models explain evidence. Code controls outcomes.</small>
+            <strong>{t("Rules set severity", "Quy tắc định mức độ")}</strong>
+            <small>{t("Models explain evidence. Code controls outcomes.", "Mô hình gợi ý bằng chứng. Mã nguồn kiểm soát kết quả.")}</small>
           </div>
         </article>
         <article className="landing-proof-item">
@@ -243,16 +267,16 @@ export function LandingPage() {
             <Database size={18} />
           </div>
           <div>
-            <strong>Cloud-native data</strong>
-            <small>Frames and metadata stay in their source systems.</small>
+            <strong>{t("Cloud-native data", "Dữ liệu cloud gốc")}</strong>
+            <small>{t("Frames and metadata stay in their source systems.", "Hình ảnh và siêu dữ liệu lưu trữ tại nguồn của bạn.")}</small>
           </div>
         </article>
       </section>
 
       <section className="landing-problem" id="signals">
         <div className="landing-section-copy">
-          <h2>See the failure, not another list.</h2>
-          <p>Label Guardian turns scattered annotation defects into spatial evidence reviewers can inspect.</p>
+          <h2>{t("See the failure, not another list.", "Nhìn thấy trực quan lỗi, không chỉ là danh sách.")}</h2>
+          <p>{t("Label Guardian turns scattered annotation defects into spatial evidence reviewers can inspect.", "Label Guardian chuyển đổi các khuyết tật nhãn rải rác thành bằng chứng không gian dễ dàng kiểm tra.")}</p>
           <div className="landing-issue-legend" aria-label="Detected issue types">
             {issueTypes.map((issue, index) => (
               <span key={issue}><i>{index + 1}</i>{issue}</span>
@@ -267,15 +291,15 @@ export function LandingPage() {
           <span className="issue-box issue-box-four"><i>4</i></span>
           <figcaption>
             <span>scene_000142</span>
-            <strong>4 signals found</strong>
+            <strong>{t("4 signals found", "Tìm thấy 4 lỗi")}</strong>
           </figcaption>
         </figure>
       </section>
 
       <section className="landing-pipeline" id="pipeline">
         <div className="landing-section-copy landing-section-copy-compact">
-          <h2>A QA pipeline you can follow.</h2>
-          <p>Each case moves from raw annotation to review-ready evidence through deterministic stages.</p>
+          <h2>{t("A QA pipeline you can follow.", "Quy trình QA trực quan tin cậy.")}</h2>
+          <p>{t("Each case moves from raw annotation to review-ready evidence through deterministic stages.", "Mỗi trường hợp di chuyển từ nhãn thô đến bằng chứng đánh giá qua các giai đoạn xác định.")}</p>
         </div>
         <div className="landing-pipeline-canvas" aria-label="Annotation QA pipeline">
           <article className="pipeline-source">
@@ -284,13 +308,13 @@ export function LandingPage() {
               <span />
               <span />
             </div>
-            <div><small>Input</small><strong>Annotation</strong></div>
+            <div><small>{t("Input", "Đầu vào")}</small><strong>{t("Annotation", "Nhãn thô")}</strong></div>
           </article>
           <div className="pipeline-link" aria-hidden="true"><span /></div>
           <article className="pipeline-engine">
             <span className="pipeline-engine-icon"><Bot size={22} /></span>
             <div className="pipeline-engine-rings" aria-hidden="true"><i /><i /><i /></div>
-            <div><small>Evidence engine</small><strong>Match + score</strong></div>
+            <div><small>{t("Evidence engine", "Bộ máy bằng chứng")}</small><strong>{t("Match + score", "Khớp nhãn + tính điểm")}</strong></div>
           </article>
           <div className="pipeline-link" aria-hidden="true"><span /></div>
           <article className="pipeline-output">
@@ -299,51 +323,53 @@ export function LandingPage() {
               <span><i /> Loose bbox <b>M</b></span>
               <span><i /> Missing label <b>H</b></span>
             </div>
-            <div><small>Output</small><strong>Ranked QA cases</strong></div>
+            <div><small>{t("Output", "Đầu ra")}</small><strong>{t("Ranked QA cases", "Hàng đợi QA phân loại")}</strong></div>
           </article>
         </div>
       </section>
 
       <section className="landing-review" id="review">
         <div className="landing-review-heading">
-          <h2>One fluid path from signal to revision.</h2>
+          <h2>{t("One fluid path from signal to revision.", "Một lộ trình mượt mà từ tín hiệu đến sửa đổi.")}</h2>
           <a className="landing-text-link" href="/qa-queue">
-            Open QA Queue
+            {t("Open QA Queue", "Mở danh sách hàng đợi QA")}
             <ArrowRight size={16} aria-hidden="true" />
           </a>
         </div>
         <div className="landing-workflow">
-          <ol className="workflow-steps">
-            {workflowSteps.map((step, index) => {
-              const Icon = step.icon;
-              return (
-                <li key={step.label} className={index === 1 ? "is-current" : ""}>
-                  <span><Icon size={19} aria-hidden="true" /></span>
-                  <div><strong>{step.label}</strong><small>{step.meta}</small></div>
-                </li>
-              );
-            })}
-          </ol>
-          <div className="workflow-stage">
-            <figure>
-              <img src="/label-guardian-hero.png" alt="Frame under human review with model and annotation overlays" />
-              <span className="workflow-bbox workflow-bbox-label" />
-              <span className="workflow-bbox workflow-bbox-model" />
-            </figure>
-            <div className="workflow-decision">
-              <div>
-                <GitCompareArrows size={18} aria-hidden="true" />
-                <span><small>Evidence</small><strong>Class mismatch</strong></span>
-              </div>
-              <div className="workflow-actions" aria-label="Review decisions">
-                <span><Check size={15} />Accept</span>
-                <span className="is-selected"><PencilRuler size={15} />Edit</span>
-                <span><History size={15} />Restore</span>
-              </div>
-              <div className="workflow-revision">
-                <GitCommitHorizontal size={17} />
-                <span>revision_03</span>
-                <b>saved</b>
+          <div className="landing-workflow-inner">
+            <ol className="workflow-steps">
+              {workflowSteps.map((step, index) => {
+                const Icon = step.icon;
+                return (
+                  <li key={step.label} className={index === 1 ? "is-current" : ""}>
+                    <span><Icon size={19} aria-hidden="true" /></span>
+                    <div><strong>{step.label}</strong><small>{step.meta}</small></div>
+                  </li>
+                );
+              })}
+            </ol>
+            <div className="workflow-stage">
+              <figure>
+                <img src="/label-guardian-hero.png" alt="Frame under human review with model and annotation overlays" />
+                <span className="workflow-bbox workflow-bbox-label" />
+                <span className="workflow-bbox workflow-bbox-model" />
+              </figure>
+              <div className="workflow-decision">
+                <div>
+                  <GitCompareArrows size={18} aria-hidden="true" />
+                  <span><small>{t("Evidence", "Bằng chứng")}</small><strong>{t("Class mismatch", "Sai lớp đối tượng")}</strong></span>
+                </div>
+                <div className="workflow-actions" aria-label="Review decisions">
+                  <span><Check size={15} />{t("Accept", "Đồng ý")}</span>
+                  <span className="is-selected"><PencilRuler size={15} />{t("Edit", "Sửa đổi")}</span>
+                  <span><History size={15} />{t("Restore", "Phục hồi")}</span>
+                </div>
+                <div className="workflow-revision">
+                  <GitCommitHorizontal size={17} />
+                  <span>revision_03</span>
+                  <b>{t("saved", "đã lưu")}</b>
+                </div>
               </div>
             </div>
           </div>
@@ -352,53 +378,53 @@ export function LandingPage() {
 
       <section className="landing-architecture" id="architecture">
         <div className="landing-section-copy landing-section-copy-compact">
-          <h2>Data moves. Ownership stays clear.</h2>
-          <p>A live path from private storage to reviewer decision, with every correction returning as a traceable revision.</p>
+          <h2>{t("Data moves. Ownership stays clear.", "Dữ liệu di chuyển. Quyền sở hữu giữ nguyên.")}</h2>
+          <p>{t("A live path from private storage to reviewer decision, with every correction returning as a traceable revision.", "Một luồng trực tiếp từ lưu trữ nội bộ đến quyết định đánh giá, lưu lịch sử sửa đổi rõ ràng.")}</p>
         </div>
         <div className="architecture-flow" aria-label="System architecture data flow">
           <div className="architecture-source architecture-gcs">
             <Cloud size={23} aria-hidden="true" />
-            <span><small>Objects</small><strong>GCS frames</strong></span>
+            <span><small>{t("Objects", "Lưu trữ")}</small><strong>GCS frames</strong></span>
           </div>
           <div className="architecture-source architecture-db">
             <Database size={23} aria-hidden="true" />
-            <span><small>State</small><strong>Supabase</strong></span>
+            <span><small>{t("State", "Cơ sở dữ liệu")}</small><strong>Supabase</strong></span>
           </div>
           <div className="architecture-beam architecture-beam-a" aria-hidden="true"><i /></div>
           <div className="architecture-beam architecture-beam-b" aria-hidden="true"><i /></div>
           <div className="architecture-core">
             <span className="architecture-core-icon"><ShieldCheck size={26} /></span>
-            <small>Private API boundary</small>
+            <small>{t("Private API boundary", "Phân vùng API bảo mật")}</small>
             <strong>FastAPI + QA agent</strong>
             <div><Code2 size={14} /> deterministic rules</div>
           </div>
           <div className="architecture-beam architecture-beam-c" aria-hidden="true"><i /></div>
           <div className="architecture-reviewer">
             <Layers3 size={23} aria-hidden="true" />
-            <span><small>Workspace</small><strong>React reviewer</strong></span>
+            <span><small>{t("Workspace", "Không gian làm việc")}</small><strong>React reviewer</strong></span>
           </div>
           <div className="architecture-return" aria-hidden="true"><span /></div>
           <div className="architecture-audit">
             <FileCheck2 size={19} aria-hidden="true" />
-            <span><strong>Revision + audit event</strong><small>actor, note, status, timestamp</small></span>
+            <span><strong>{t("Revision + audit event", "Lịch sử sửa đổi và kiểm toán")}</strong><small>actor, note, status, timestamp</small></span>
           </div>
         </div>
       </section>
 
       <section className="landing-guardrails" aria-label="Product guardrails">
-        <span><ShieldCheck size={18} />Human approval</span>
-        <span><Code2 size={18} />Deterministic severity</span>
-        <span><History size={18} />Immutable revisions</span>
-        <span><Database size={18} />Traceable provenance</span>
+        <span><ShieldCheck size={18} />{t("Human approval", "Con người phê duyệt")}</span>
+        <span><Code2 size={18} />{t("Deterministic severity", "Mức độ xác định")}</span>
+        <span><History size={18} />{t("Immutable revisions", "Phiên bản bất biến")}</span>
+        <span><Database size={18} />{t("Traceable provenance", "Nguồn gốc rõ ràng")}</span>
       </section>
 
       <section className="landing-final">
         <div>
           <MousePointer2 size={24} aria-hidden="true" />
-          <h2>Review the frames that matter first.</h2>
+          <h2>{t("Review the frames that matter first.", "Đánh giá các frame quan trọng trước.")}</h2>
         </div>
         <a className="landing-primary-action" href="/overview">
-          Enter workspace
+          {t("Enter workspace", "Vào không gian làm việc")}
           <ArrowRight size={18} aria-hidden="true" />
         </a>
       </section>

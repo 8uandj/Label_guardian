@@ -2037,3 +2037,38 @@ html:has(.landing-page) {
     padding-top: 68px;
   }
 }
+
+/* Landing Page Language Switcher */
+.landing-lang-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.landing-lang-switcher span {
+  color: rgba(255, 255, 255, 0.15);
+}
+.landing-lang-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+.landing-lang-btn:hover {
+  color: #fff;
+}
+.landing-lang-btn.active {
+  color: var(--landing-accent, #56c9bf);
+  background: rgba(86, 201, 191, 0.12);
+}
+

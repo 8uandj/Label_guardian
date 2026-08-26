@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { isApiDataSourceEnabled } from "../api/labelGuardianApi";
-import { useQaCasesQuery, useRealDatasetFrameSamplesQuery } from "../api/queries";
+import { useQaCasesQuery, useRealDatasetFrameSamplesQuery, usePipelineRunsQuery } from "../api/queries";
 import { Button } from "../components/ui";
 import { cloudDatasets } from "../config/cloudDataset";
 import type {
@@ -158,6 +158,12 @@ export function OverviewView({
   const now = Date.now();
   const role = state.activeRole;
   const activeUser = state.users.find((user) => user.id === state.activeUserId);
+  const pipelineRunsQuery = usePipelineRunsQuery(apiDataSourceEnabled);
+  const latestRun = pipelineRunsQuery.data?.results?.[0];
+  const realQaRunStatus = latestRun?.status ?? "idle";
+  const realQaRunProgress = latestRun?.stages.find(s => s.percent < 100)?.percent ?? (latestRun?.status === "finished" ? 100 : 0);
+  const realQaRunModelVersion = latestRun?.datasetType ?? "yolov8-nuscenes";
+  const realQaRunRuleVersion = latestRun?.release ?? "v1.0-mini";
 
   const selectedDataset = state.datasets.find((item) => item.id === state.selectedDatasetId) ?? state.datasets[0];
   const selectedBatch = state.batches.find((batch) => batch.datasetId === state.selectedDatasetId);
@@ -246,9 +252,9 @@ export function OverviewView({
   const waitingReview = tasks.filter((task) => ["submitted", "resubmitted"].includes(task.stage)).length;
   const reworkCount = tasks.filter((task) => task.stage === "changes_requested").length;
   const criticalOpen = openTasks.filter((task) => ["critical", "high"].includes(task.severity)).length;
-  const unresolvedComments = state.feedbackComments.filter((comment) => !comment.resolved && comment.blocking).length;
+  const unresolvedComments = apiDataSourceEnabled ? 0 : state.feedbackComments.filter((comment) => !comment.resolved && comment.blocking).length;
   const disagreementCount = tasks.filter((task) => task.type === "wrong_class" || task.status === "rejected").length;
-  const enabledChecks = state.rules.filter((rule) => rule.enabled).length + state.models.filter((model) => model.enabled).length;
+  const enabledChecks = apiDataSourceEnabled ? 6 : state.rules.filter((rule) => rule.enabled).length + state.models.filter((model) => model.enabled).length;
 
   const roleFacts: Record<Role, RoleFact[]> = {
     reviewer: [
@@ -266,7 +272,7 @@ export function OverviewView({
     admin: [
       { label: "Disagreement signals", value: disagreementCount, tone: disagreementCount ? "warning" : "success" },
       { label: "High risk signals", value: criticalOpen, tone: criticalOpen ? "danger" : "success" },
-      { label: "Evaluation", value: state.qaRun.status === "running" ? `${state.qaRun.progress}%` : state.qaRun.status },
+      { label: "Evaluation", value: apiDataSourceEnabled ? realQaRunStatus : state.qaRun.status === "running" ? `${state.qaRun.progress}%` : state.qaRun.status },
       { label: "Active checks", value: enabledChecks },
     ],
   };
@@ -418,7 +424,7 @@ export function OverviewView({
             </div>
             <div className="ov2-health-signals">
               <div><MessageSquareWarning size={16} /><span><small>Blocking feedback</small><strong>{unresolvedComments || "None"}</strong></span></div>
-              <div><RefreshCw size={16} /><span><small>Evaluation run</small><strong>{state.qaRun.status === "running" ? `${state.qaRun.progress}% complete` : state.qaRun.status}</strong></span></div>
+              <div><RefreshCw size={16} /><span><small>Evaluation run</small><strong>{apiDataSourceEnabled ? (realQaRunStatus === "running" ? `${realQaRunProgress}% complete` : realQaRunStatus) : (state.qaRun.status === "running" ? `${state.qaRun.progress}% complete` : state.qaRun.status)}</strong></span></div>
               <div><Layers3 size={16} /><span><small>Coverage</small><strong>{assigned}/{healthTotal} assigned</strong></span></div>
             </div>
           </section>
@@ -426,8 +432,8 @@ export function OverviewView({
 
         {role === "admin" ? (
           <section className="ov2-agent-strip" aria-label="Agent evaluation signals">
-            <div><GitBranch size={17} /><span><small>Model</small><strong>{state.qaRun.modelVersion}</strong></span></div>
-            <div><ShieldCheck size={17} /><span><small>Rule set</small><strong>{state.qaRun.ruleVersion}</strong></span></div>
+            <div><GitBranch size={17} /><span><small>Model</small><strong>{apiDataSourceEnabled ? realQaRunModelVersion : state.qaRun.modelVersion}</strong></span></div>
+            <div><ShieldCheck size={17} /><span><small>Rule set</small><strong>{apiDataSourceEnabled ? realQaRunRuleVersion : state.qaRun.ruleVersion}</strong></span></div>
             <div><Activity size={17} /><span><small>Reviewer disagreement</small><strong>{disagreementCount} signals</strong></span></div>
             <button type="button" onClick={onOpenQueue}>Compare evidence <ChevronRight size={15} /></button>
           </section>

@@ -21,8 +21,19 @@
 .real-data-thumbnails button.is-selected { border-color: var(--blue); box-shadow: 0 0 0 2px rgb(37 99 235 / 12%); }
 .real-data-thumbnails img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #e8edf5; }
 .real-data-thumbnails span { display: flex; justify-content: space-between; gap: 4px; padding: 6px; }
-.real-data-thumbnails strong, .real-data-thumbnails small { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.real-data-thumbnails small { color: var(--muted); }
+.real-data-thumbnails strong, .real-data-thumbnails small {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.real-data-thumbnails strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+.real-data-thumbnails small {
+  color: #475569;
+}
 .real-data-pagination { position: sticky; bottom: -12px; margin: 10px -12px -12px; padding: 10px 12px; border-top: 1px solid var(--line); background: #fff; }
 .real-data-main { display: grid; gap: 16px; min-width: 0; }
 .real-data-viewer, .real-data-agent { padding: 16px; }

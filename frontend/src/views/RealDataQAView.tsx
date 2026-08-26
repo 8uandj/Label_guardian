@@ -383,7 +383,7 @@ export function RealDataQAView() {
             >
               Trang trước
             </Button>
-            <span>{Math.floor(offset / PAGE_SIZE) + 1}</span>
+            <span>{Math.floor(offset / PAGE_SIZE) + 1} / {Math.ceil((samplesQuery.data?.count ?? 0) / PAGE_SIZE) || 1}</span>
             <Button
               size="sm"
               disabled={lastPage}

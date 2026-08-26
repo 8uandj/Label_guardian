@@ -13,6 +13,7 @@ import {
   AuthenticatedImage,
   useAuthenticatedAssetUrl,
 } from "../components/AuthenticatedImage";
+import { labelGuardianApiV1 } from "../api/labelGuardianApi";
 import { Badge, Button, Card, SectionHeading } from "../components/ui";
 import {
   apiBoxIntersectsImage,
@@ -143,6 +144,25 @@ export function RealDataQAView() {
       setSelectedId(images[0]?.id);
     }
   }, [images, selectedId]);
+
+  useEffect(() => {
+    if (document.hidden || !selectedId) return;
+    const index = images.findIndex((img) => img.id === selectedId);
+    if (index === -1) return;
+
+    const connection = (navigator as any).connection;
+    if (connection && (connection.saveData || connection.effectiveType === "slow-2g" || connection.effectiveType === "2g")) {
+      return;
+    }
+
+    const prefetchImage = (img?: RealDatasetImageDto) => {
+      if (!img) return;
+      labelGuardianApiV1.fetchAsset(img.imageUrl).catch(() => {});
+    };
+
+    prefetchImage(images[index + 1]);
+    prefetchImage(images[index - 1]);
+  }, [selectedId, images]);
 
   const selected = useMemo(
     () => images.find((image) => image.id === selectedId) ?? images[0],
@@ -297,9 +317,11 @@ export function RealDataQAView() {
                       }}
                     >
                       <AuthenticatedImage
-                        sourcePath={image.imageUrl}
+                        sourcePath={`${image.imageUrl}?size=thumbnail`}
                         alt={`${sample.sampleId} ${image.cameraChannel ?? image.id}`}
                         loading="lazy"
+                        // @ts-ignore
+                        fetchpriority="low"
                       />
                       <span>
                         <strong>
@@ -395,6 +417,8 @@ export function RealDataQAView() {
                     href={selectedAsset.source}
                     width={selected.width}
                     height={selected.height}
+                    // @ts-ignore
+                    fetchpriority="high"
                   />
                   {comparisonMode !== "prediction"
                     ? displayedLabels.map((label) => (

@@ -2,8 +2,10 @@
 
 import asyncio
 import json
+import io
 import mimetypes
 import os
+import uuid
 from collections import defaultdict
 from collections.abc import Iterator, Sequence
 from functools import lru_cache
@@ -11,8 +13,10 @@ from pathlib import Path, PurePosixPath
 from typing import Annotated, cast
 from urllib.parse import urlparse
 
+from PIL import Image
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response, StreamingResponse
+from google.api_core.exceptions import NotFound
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +42,14 @@ from src.services.google_cloud import create_gcs_storage_client
 from src.services.ingestion.yolo_detection_adapter import YoloDatasetLayoutError
 from src.services.real_dataset_qa_service import RealDatasetQaService
 from src.services.real_dataset_service import RealDatasetService
+
+_process_gcs_client = None
+
+def _get_process_gcs_client():
+    global _process_gcs_client
+    if _process_gcs_client is None:
+        _process_gcs_client = create_gcs_storage_client(IngestionSettings())
+    return _process_gcs_client
 
 router = APIRouter(
     prefix="/dataset",
@@ -415,19 +427,19 @@ def _bucket_and_key(image: QAImage) -> tuple[str, str]:
 
 
 def _gcs_blob(image: QAImage):  # type: ignore[no-untyped-def]
-    settings = IngestionSettings()
     bucket_name, key = _bucket_and_key(image)
-    client = create_gcs_storage_client(settings)
+    client = _get_process_gcs_client()
     blob = client.bucket(bucket_name).blob(key)
-    if not blob.exists(client=client):
-        raise FileNotFoundError(f"Dataset image object does not exist in GCS: gs://{bucket_name}/{key}")
-    blob.reload(client=client)
     return blob
 
 
 def _download_gcs_image(image: QAImage) -> tuple[bytes, str]:
     blob = _gcs_blob(image)
-    return blob.download_as_bytes(), blob.content_type or "application/octet-stream"
+    try:
+        data = blob.download_as_bytes()
+        return data, blob.content_type or "application/octet-stream"
+    except NotFound as error:
+        raise FileNotFoundError(f"Dataset image object does not exist in GCS: gs://{blob.bucket.name}/{blob.name}") from error
 
 
 def _stream_gcs_image(image: QAImage) -> tuple[Iterator[bytes], str, dict[str, str]]:
@@ -435,15 +447,26 @@ def _stream_gcs_image(image: QAImage) -> tuple[Iterator[bytes], str, dict[str, s
     blob = _gcs_blob(image)
     blob.chunk_size = 1024 * 1024
 
+    try:
+        stream = blob.open("rb")
+        first_chunk = stream.read(blob.chunk_size)
+    except NotFound as error:
+        raise FileNotFoundError(f"Dataset image object does not exist in GCS: gs://{blob.bucket.name}/{blob.name}") from error
+
     def chunks() -> Iterator[bytes]:
-        with blob.open("rb") as stream:
+        with stream:
+            if first_chunk:
+                yield first_chunk
             while chunk := stream.read(blob.chunk_size):
                 yield chunk
 
-    headers = {"Cache-Control": "private, max-age=300"}
+    headers = {"Cache-Control": "private, max-age=31536000, immutable"}
     if blob.etag:
         headers["ETag"] = blob.etag
-    return chunks(), blob.content_type or "application/octet-stream", headers
+    
+    filename = getattr(image, "storage_key", None) or getattr(image, "filename", None) or ""
+    content_type = blob.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return chunks(), content_type, headers
 
 
 def _validated_storage_segment(value: str, field: str) -> str:
@@ -493,7 +516,7 @@ def _stream_gcs_pointcloud(
             while chunk := stream.read(blob.chunk_size):
                 yield chunk
 
-    headers = {"Cache-Control": "private, max-age=300"}
+    headers = {"Cache-Control": "private, max-age=31536000, immutable"}
     if blob.etag:
         headers["ETag"] = blob.etag
     return chunks(), headers
@@ -964,27 +987,76 @@ async def get_real_dataset_image(
         raise _not_found(error) from error
 
 
+def _generate_thumbnail(image_bytes: bytes) -> bytes:
+    with Image.open(io.BytesIO(image_bytes)) as img:
+        img.thumbnail((240, 135), Image.Resampling.LANCZOS)
+        out = io.BytesIO()
+        img.save(out, format="WebP")
+        return out.getvalue()
+
+
+async def _serve_generated_thumbnail(original_path: Path, thumb_path: Path) -> FileResponse:
+    def _gen():
+        with Image.open(original_path) as img:
+            img.thumbnail((240, 135), Image.Resampling.LANCZOS)
+            out = io.BytesIO()
+            img.save(out, format="WebP")
+            return out.getvalue()
+
+    thumb_bytes = await asyncio.to_thread(_gen)
+    thumb_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = thumb_path.with_name(f"{thumb_path.name}.tmp-{uuid.uuid4()}")
+    tmp_path.write_bytes(thumb_bytes)
+    os.replace(tmp_path, thumb_path)
+    return FileResponse(thumb_path, media_type="image/webp", headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
+
 @router.get("/images/{split}/{image_id}/content", response_class=Response, response_model=None)
 async def get_real_dataset_image_content(
     split: str,
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
     session: AsyncSession = Depends(get_db_session),
-) -> FileResponse | StreamingResponse:
+    size: str | None = Query(default=None),
+) -> FileResponse | StreamingResponse | Response:
+    if size and size != "thumbnail":
+        raise HTTPException(status_code=400, detail="Invalid size parameter")
+
     try:
+        is_thumbnail = size == "thumbnail"
+
+        if is_thumbnail:
+            thumb_path = _gcs_cache_root() / "thumbnails" / f"{image_id}.webp"
+            if thumb_path.exists():
+                return FileResponse(thumb_path, media_type="image/webp", headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
         if service.dataset_backend == "database":
             cached = _cached_image_content(service, split, image_id)
             if cached is not None:
                 path, media_type = cached
-                return FileResponse(path, media_type=media_type, headers={"Cache-Control": "private, max-age=300"})
-            image = await _get_database_image_row(session, service, image_id, split=split)
-            chunks, content_type, headers = await asyncio.to_thread(_stream_gcs_image, image)
+                if is_thumbnail:
+                    return await _serve_generated_thumbnail(path, thumb_path)
+                return FileResponse(path, media_type=media_type, headers={"Cache-Control": "private, max-age=31536000, immutable"})
+            image_row = await _get_database_image_row(session, service, image_id, split=split)
+            
+            if is_thumbnail:
+                data, _ = await asyncio.to_thread(_download_gcs_image, image_row)
+                thumb_bytes = await asyncio.to_thread(_generate_thumbnail, data)
+                thumb_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = thumb_path.with_name(f"{thumb_path.name}.tmp-{uuid.uuid4()}")
+                tmp_path.write_bytes(thumb_bytes)
+                os.replace(tmp_path, thumb_path)
+                return FileResponse(thumb_path, media_type="image/webp", headers={"Cache-Control": "private, max-age=31536000, immutable"})
+            
+            chunks, content_type, headers = await asyncio.to_thread(_stream_gcs_image, image_row)
             return StreamingResponse(
                 chunks,
                 media_type=content_type,
                 headers=headers,
             )
         path = service.image_path(split, image_id)
+        if is_thumbnail:
+            return await _serve_generated_thumbnail(path, thumb_path)
     except (FileNotFoundError, YoloDatasetLayoutError) as error:
         raise _not_found(error) from error
     return FileResponse(path)

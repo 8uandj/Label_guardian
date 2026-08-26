@@ -43,6 +43,7 @@ import type {
 import {
   useAuthenticatedAssetUrl,
 } from "../components/AuthenticatedImage";
+import { labelGuardianApiV1 } from "../api/labelGuardianApi";
 import "../styles/label-editor.css";
 import { boxIntersectsImage } from "../utils/realDataset";
 import { classColorForLabel } from "../utils/labelColor";
@@ -355,6 +356,25 @@ export function AnnotatorWorkspaceView({
       updateSelectedImageInUrl(frames[0].id, true);
     }
   }, [frames, selectedImageId, updateSelectedImageInUrl]);
+
+  useEffect(() => {
+    if (document.hidden || !selectedImageId) return;
+    const index = frames.findIndex((img) => img.id === selectedImageId);
+    if (index === -1) return;
+
+    const connection = (navigator as any).connection;
+    if (connection && (connection.saveData || connection.effectiveType === "slow-2g" || connection.effectiveType === "2g")) {
+      return;
+    }
+
+    const prefetchImage = (img?: RealDatasetImageDto) => {
+      if (!img) return;
+      labelGuardianApiV1.fetchAsset(img.imageUrl).catch(() => {});
+    };
+
+    prefetchImage(frames[index + 1]);
+    prefetchImage(frames[index - 1]);
+  }, [selectedImageId, frames]);
 
   useEffect(() => {
     if (!document) return;
@@ -1062,6 +1082,8 @@ export function AnnotatorWorkspaceView({
                   width={canvasWidth}
                   height={canvasHeight}
                   preserveAspectRatio="none"
+                  // @ts-ignore
+                  fetchpriority="high"
                 />
                 {agentHighlightedPrediction ? (
                   <rect

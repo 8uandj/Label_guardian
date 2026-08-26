@@ -358,7 +358,7 @@ export function AnnotatorWorkspaceView({
   }, [frames, selectedImageId, updateSelectedImageInUrl]);
 
   useEffect(() => {
-    if (document.hidden || !selectedImageId) return;
+    if (window.document.hidden || !selectedImageId) return;
     const index = frames.findIndex((img) => img.id === selectedImageId);
     if (index === -1) return;
 

@@ -20,7 +20,7 @@ import {
   reportForSelectedImage,
 } from "../utils/realDataset";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 const boxColors = [
   "#2563eb",
   "#dc2626",
@@ -121,15 +121,34 @@ export function RealDataQAView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedDataset = searchParams.get("dataset") || "nuscenes";
   const requestedSplit = searchParams.get("split") || import.meta.env.VITE_DATASET_DEFAULT_SPLIT || "product";
+  const [selectedSequence, setSelectedSequence] = useState<string>("all");
   const [offset, setOffset] = useState(0);
   const [selectedId, setSelectedId] = useState<string>();
   const [comparisonMode, setComparisonMode] = useState<
     "gt" | "prediction" | "both"
   >("both");
+
+  // Metadata query (with high limit) just to extract available sequences
+  const metadataQuery = useRealDatasetFrameSamplesQuery(
+    requestedSplit,
+    0,
+    selectedDataset,
+    undefined,
+    200,
+  );
+
+  const availableSequences = useMemo(() => {
+    const results = metadataQuery.data?.results ?? [];
+    return [...new Set(results.map((sample) => sample.sequenceId))].sort();
+  }, [metadataQuery.data]);
+
+  // Paginated query for the active list (loads only PAGE_SIZE = 10 samples)
   const samplesQuery = useRealDatasetFrameSamplesQuery(
     requestedSplit,
     offset,
     selectedDataset,
+    selectedSequence === "all" ? undefined : selectedSequence,
+    PAGE_SIZE,
   );
   const split = requestedSplit ?? samplesQuery.data?.split ?? "";
   const evaluation = useEvaluateRealDatasetImageMutation();
@@ -232,6 +251,7 @@ export function RealDataQAView() {
                 updateUrlFilter("dataset", event.target.value);
                 setOffset(0);
                 setSelectedId(undefined);
+                setSelectedSequence("all");
                 evaluation.reset();
               }}
             >
@@ -246,11 +266,29 @@ export function RealDataQAView() {
                 updateUrlFilter("split", event.target.value);
                 setOffset(0);
                 setSelectedId(undefined);
+                setSelectedSequence("all");
                 evaluation.reset();
               }}
             >
               {samplesQuery.data?.availableSplits.map((item) => (
                 <option key={item}>{item}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Scene (Sequence)</span>
+            <select
+              value={selectedSequence}
+              onChange={(event) => {
+                setSelectedSequence(event.target.value);
+                setOffset(0);
+                setSelectedId(undefined);
+                evaluation.reset();
+              }}
+            >
+              <option value="all">Tất cả sequence</option>
+              {availableSequences.map((seq) => (
+                <option key={seq} value={seq}>{seq}</option>
               ))}
             </select>
           </label>

@@ -169,8 +169,9 @@ export const labelGuardianApiV1 = {
     signal?: AbortSignal,
     dataset?: string,
     sequenceId?: string,
+    limit = 100,
   ): Promise<RealDatasetFrameSampleListDto> {
-    const parameters = new URLSearchParams({ limit: "100", offset: String(offset) });
+    const parameters = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     if (split) parameters.set("split", split);
     if (dataset) parameters.set("dataset", dataset);
     if (sequenceId) parameters.set("sequence_id", sequenceId);

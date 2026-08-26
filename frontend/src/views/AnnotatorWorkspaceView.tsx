@@ -866,8 +866,6 @@ export function AnnotatorWorkspaceView({
     setSelectedImageId(next.id);
     updateSelectedImageInUrl(next.id);
   };
-
-  const frameIndex = frames.findIndex((item) => item.id === frame.id);
   return (
     <div className="label-editor-shell">
       <header className="editor-topbar">
@@ -1448,20 +1446,6 @@ export function AnnotatorWorkspaceView({
               ))}
             </select>
           </div>
-          <div className="editor-selector-group">
-            <span>Frame</span>
-            <select
-              className="editor-select-box"
-              value={selectedSampleId}
-              onChange={(e) => handleSampleChange(e.target.value)}
-            >
-              {filteredSamplesForDropdown.map((sample, idx) => (
-                <option key={sample.id} value={sample.id}>
-                  Frame {String(idx + 1).padStart(2, "0")}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* 10-Frame Sequence Strip (Middle Section) */}
@@ -1475,7 +1459,11 @@ export function AnnotatorWorkspaceView({
                 key={sample.id}
                 style={isSampleActive ? { borderColor: "var(--color-brand, #56c9bf)" } : undefined}
               >
-                <header>
+                <header 
+                  style={{ cursor: "pointer" }}
+                  onClick={() => handleSampleChange(sample.id)}
+                  title={`Switch to Frame ${absoluteFrameNum}`}
+                >
                   <strong style={isSampleActive ? { color: "var(--color-brand, #56c9bf)" } : undefined}>
                     Frame {String(absoluteFrameNum).padStart(2, "0")}
                   </strong>
@@ -1526,28 +1514,10 @@ export function AnnotatorWorkspaceView({
             <div className="editor-playback-controls" style={{ display: "flex" }}>
               <button
                 type="button"
-                disabled={frameIndex <= 0}
-                onClick={() =>
-                  frames[frameIndex - 1] && switchFrame(frames[frameIndex - 1])
-                }
-              >
-                <ChevronLeft size={17} />
-              </button>
-              <button
-                type="button"
                 onClick={() => void annotationQuery.refetch()}
                 title="Reload revision"
               >
                 <RotateCcw size={17} />
-              </button>
-              <button
-                type="button"
-                disabled={frameIndex < 0 || frameIndex >= frames.length - 1}
-                onClick={() =>
-                  frames[frameIndex + 1] && switchFrame(frames[frameIndex + 1])
-                }
-              >
-                <ChevronRight size={17} />
               </button>
             </div>
           </div>

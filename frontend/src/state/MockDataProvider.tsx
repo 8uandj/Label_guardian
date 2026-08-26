@@ -55,6 +55,16 @@ type Action =
       assigneeId: string;
       userId: string;
     }
+  | {
+      type: "request_changes";
+      findingId: string;
+      assigneeId: string;
+      userId: string;
+      feedback: string;
+      reasonCategory: "geometry" | "class" | "missing_label" | "tracking" | "other";
+    }
+  | { type: "resubmit_finding"; findingId: string; userId: string; note?: string }
+  | { type: "resolve_feedback"; commentId: string; userId: string }
   | { type: "reset" };
 
 function loadInitialState(): MockState {
@@ -73,6 +83,12 @@ function loadInitialState(): MockState {
     return {
       ...seed,
       ...parsed,
+      findings: seed.findings.map((finding) => ({
+        ...finding,
+        ...(parsed.findings?.find((item) => item.id === finding.id) ?? {}),
+      })),
+      batches: parsed.batches ?? seed.batches,
+      feedbackComments: parsed.feedbackComments ?? seed.feedbackComments,
       qaRun: parsed.qaRun ?? seed.qaRun,
       rules: parsed.rules ?? seed.rules,
       models: parsed.models ?? seed.models,
@@ -126,6 +142,19 @@ function reducer(state: MockState, action: Action): MockState {
         action.assigneeId,
         action.userId,
       );
+    case "request_changes":
+      return repository.requestChanges(
+        state,
+        action.findingId,
+        action.userId,
+        action.assigneeId,
+        action.feedback,
+        action.reasonCategory,
+      );
+    case "resubmit_finding":
+      return repository.resubmitFinding(state, action.findingId, action.userId, action.note);
+    case "resolve_feedback":
+      return repository.resolveFeedback(state, action.commentId, action.userId);
     case "reset":
       return repository.reset();
     default:
@@ -151,6 +180,14 @@ interface MockDataContextValue {
     approveFinding: (findingId: string, reason?: string) => void;
     submitFeedback: (findingId: string, feedback: string) => void;
     assignFinding: (findingId: string, assigneeId: string) => void;
+    requestChanges: (
+      findingId: string,
+      assigneeId: string,
+      feedback: string,
+      reasonCategory: "geometry" | "class" | "missing_label" | "tracking" | "other",
+    ) => void;
+    resubmitFinding: (findingId: string, note?: string) => void;
+    resolveFeedback: (commentId: string) => void;
     reset: () => void;
   };
 }
@@ -204,6 +241,19 @@ export function MockDataProvider({ children }: PropsWithChildren) {
           assigneeId,
           userId: state.activeUserId,
         }),
+      requestChanges: (findingId, assigneeId, feedback, reasonCategory) =>
+        dispatch({
+          type: "request_changes",
+          findingId,
+          assigneeId,
+          feedback,
+          reasonCategory,
+          userId: state.activeUserId,
+        }),
+      resubmitFinding: (findingId, note) =>
+        dispatch({ type: "resubmit_finding", findingId, note, userId: state.activeUserId }),
+      resolveFeedback: (commentId) =>
+        dispatch({ type: "resolve_feedback", commentId, userId: state.activeUserId }),
       reset: () => dispatch({ type: "reset" }),
     }),
     [state.activeUserId],

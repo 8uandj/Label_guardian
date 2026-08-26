@@ -374,3 +374,530 @@ Mỗi phase phải đạt:
 7. Auth polish và cleanup cuối.
 
 Thứ tự này đưa thay đổi có giá trị vận hành cao nhất lên trước, đồng thời giữ blast radius nhỏ và dễ kiểm chứng.
+
+---
+
+# Phần II — Workspace Product UI Plan v2
+
+Phần này là kế hoạch ưu tiên mới cho `Overview`, `QA Queue`, `QA Cases`, `Datasets / Runs` và `Reports`. Nó thay thế mức chi tiết page-level ở mục 10, 11 và 15 đối với năm trang này; các foundation về token, typography, color và verification ở Phần I vẫn giữ nguyên.
+
+## 16. Decision record
+
+- Mode: **Operate**, không phải marketing dashboard.
+- Persona chính: **QA Reviewer**.
+- Persona phụ nhưng bắt buộc demo đầy đủ: **Annotator** và **Admin / ML Engineer**.
+- Được phép thay đổi mạnh bố cục, hierarchy và thứ tự thông tin.
+- Desktop-first; tablet hỗ trợ monitoring, triage, assignment, comment và approve đơn giản.
+- Mobile là inbox/read-only companion. Editor, frame comparison và bulk operation có fallback `Optimized for desktop`.
+- Mục tiêu content: giảm 50–65% prose trên Overview, Dataset và Report; dữ liệu, hình ảnh frame, flow, chart và trạng thái thay cho paragraph.
+
+## 17. Product workflow north star
+
+```text
+Customer data
+  → Intake & validation
+  → Reviewer creates batches
+  → Assign frame tasks
+  → Annotator labels
+  → Submit revision
+  → Reviewer reviews
+      → Approve
+      → Request changes + anchored comment
+  → Annotator reworks
+  → Re-review
+  → Approved dataset release
+```
+
+Admin / ML Engineer chạy song song một vòng hiệu chứng:
+
+```text
+Agent evaluation
+  → Compare with reviewer decisions
+  → Inspect disagreement / false positives
+  → Tune rule or threshold
+  → Publish model/rule version
+  → Monitor drift on the next run
+```
+
+Nguyên tắc cốt lõi:
+
+- Mỗi frame task có đúng một `current stage`, một `current owner` và một `next action`.
+- Reviewer có thể sửa lỗi nhỏ trực tiếp hoặc gửi rework về annotator.
+- `Request changes` bắt buộc có reason category; free-text comment là phần bổ sung.
+- Comment phải neo vào frame, object hoặc bbox và revision cụ thể.
+- Rework quay lại reviewer cũ hoặc reviewer pool đã cấu hình.
+- Revision history hiện tại tiếp tục là nguồn audit chính.
+- Agent confidence không được hiển thị như độ đúng của annotation.
+
+## 18. Domain model cần thể hiện trong UI
+
+### Primary objects
+
+```text
+Customer Submission
+  → Dataset Version
+  → Batch
+  → Frame Task
+  → Annotation Revision
+  → QA Case
+  → Review Decision
+  → Release
+```
+
+### State model
+
+Không dùng một `ReviewStatus` để gánh assignment, workflow và resolution. Ba nhóm trạng thái phải độc lập:
+
+| Nhóm | Trạng thái đề xuất |
+| --- | --- |
+| Task workflow | `unassigned → assigned → in_progress → submitted → in_review → changes_requested → resubmitted → approved` |
+| Case outcome | `confirmed_issue`, `corrected`, `false_positive`, `escalated`, `skipped` |
+| Batch lifecycle | `draft → ready → active → review → rework → approved → exported` |
+
+Batch progress được tính từ task states, không nhập hoặc lưu lặp bằng tay.
+
+### Comment contract
+
+Một feedback item tối thiểu phải có:
+
+- author và role;
+- frame/object/bbox target;
+- annotation revision;
+- reason category;
+- blocking hoặc non-blocking;
+- resolved state;
+- timestamp và audit event liên quan.
+
+## 19. Information architecture mới
+
+```text
+Home
+  Overview
+
+Operations
+  QA Queue
+  QA Cases
+  Datasets / Runs
+
+Insights
+  Reports
+
+Administration
+  Agent Calibration
+  Pipeline
+  Access & Settings
+```
+
+Ranh giới bắt buộc:
+
+- **QA Queue**: focused processing mode cho công việc tiếp theo của user hiện tại.
+- **QA Cases**: system of record để tìm kiếm, phân công, theo dõi và audit toàn bộ case.
+- **Datasets / Runs**: intake, validation, batch creation, task division, run và release readiness.
+- **Reports**: phân tích xu hướng và quyết định; không lặp lại operational inbox của Overview.
+
+## 20. Shared workspace shell
+
+### Global header
+
+- Dataset/version context luôn hiện nhưng không chiếm spotlight.
+- Global search hoặc command palette tìm dataset, batch, frame, task và case ID.
+- Notification center nhóm theo `Assignment`, `Comment`, `Review decision`, `Run`.
+- Role không chỉ là badge; Overview và primary action thay đổi theo role thật.
+- Breadcrumb giữ return location và filter khi đi từ Case → Editor → Case → Queue.
+
+### Role-aware primary action
+
+| Role | Global primary action |
+| --- | --- |
+| Reviewer | `Start next review` |
+| Annotator | `Continue labeling` hoặc `Resolve feedback` |
+| Admin / ML Engineer | `Inspect agent drift` |
+
+### Navigation behavior
+
+- Desktop dùng sidebar ổn định; label không phụ thuộc hoàn toàn vào hover.
+- Active route dùng teal soft + icon + text.
+- Count chỉ dành cho actionable backlog, không dùng như decoration.
+- Tablet thu gọn thành icon rail có tooltip.
+- Mobile giữ tối đa bốn mục: Overview, Queue, Cases, More.
+
+## 21. Overview — role-aware attention cockpit
+
+### Job
+
+Trả lời một câu duy nhất: **“Tôi cần xử lý gì ngay bây giờ?”**
+
+### First viewport
+
+1. Compact context bar: dataset, active batch, freshness và health.
+2. Một primary action theo role.
+3. Workflow funnel trực quan, click vào từng stage để mở filtered Queue/Cases.
+4. `Attention map`: severity × queue age để nhận ra backlog nguy hiểm.
+
+### Visual modules
+
+- **Work funnel**: Assigned → In progress → Submitted → Review → Rework → Approved.
+- **Attention map**: heatmap nhỏ, không dùng nhiều KPI card.
+- **Dataset health**: coverage, blocking issue và run freshness bằng segmented bar.
+- **Priority strip**: 5–8 task có thumbnail, owner, age và next action.
+- **Agent signal strip** cho Admin: disagreement, failed evaluation và active rule/model version.
+
+### Role variants
+
+| Reviewer | Annotator | Admin / ML Engineer |
+| --- | --- | --- |
+| Waiting review | New assignments | Agent disagreement |
+| Returned for re-review | Rework requested | Drift alerts |
+| Critical unassigned | Unread comments | Failed runs |
+| Reviewer workload | Batch progress | Rule/model changes |
+
+### Actions
+
+- Reviewer: `Start next review`, `Assign tasks`.
+- Annotator: `Continue labeling`, `Resolve feedback`.
+- Admin: `Inspect drift`, `Compare versions`.
+- KPI hoặc chart selection phải deep-link sang page đã lọc; không có chart chỉ để xem.
+
+### Remove or compress
+
+- Bỏ welcome copy và phần mô tả hệ thống.
+- Giữ tối đa 3–4 headline metrics.
+- Không dùng mỗi màu cho một KPI card.
+- Không lặp cùng một count ở KPI, chart và priority list.
+
+## 22. QA Queue — focused workbench
+
+### Job
+
+Đưa user từ task hiện tại đến quyết định hoặc submission tiếp theo với ít chuyển context nhất.
+
+### Desktop layout
+
+```text
+Task rail  |  Dominant frame viewer  |  Evidence / action rail
+```
+
+- Task rail: saved view, compact filter, thumbnail, stage, age và unread comment.
+- Viewer: frame + GT/prediction overlay, compare modes và sequence context.
+- Action rail: evidence, current owner, anchored comments và sticky decision area.
+- Footer hoặc top toolbar: previous/next, queue position, keyboard hints trong tooltip.
+
+### Saved views
+
+- `My queue`
+- `Unassigned`
+- `Critical`
+- `Awaiting review`
+- `Changes requested`
+- `Rework returned`
+- `Agent disagreement`
+
+### Role actions
+
+| Reviewer | Annotator | Admin / ML Engineer |
+| --- | --- | --- |
+| Approve | Save revision | Run evaluation |
+| Request changes | Submit for review | Inspect evidence |
+| False positive | Reply to feedback | Compare rule/model version |
+| Escalate | Skip with reason | Mark calibration sample |
+
+### Interaction requirements
+
+- Primary action duy nhất theo current stage.
+- `Claim next` hoặc reservation để tránh hai reviewer xử lý cùng task.
+- Return từ Editor giữ nguyên queue position, filters, zoom và selected overlay.
+- `J/K`: previous/next; `Enter`: open; `E`: editor; `A`: approve; `Shift+R`: request changes.
+- Shortcut tắt khi user đang nhập liệu.
+- Error cục bộ giữ frame/data cũ và cho retry; không thay toàn page bằng error card.
+
+### Visual density
+
+- Không đặt KPI grid phía trên workbench.
+- Risk luôn đi cùng issue type và evidence signal.
+- Description của Agent tối đa 2–3 dòng; evidence định lượng hiển thị trước.
+
+## 23. QA Cases — registry, planning and audit
+
+### Job
+
+Cho Reviewer/Admin tìm, lọc, assign và theo dõi toàn bộ lifecycle; cho Annotator thấy phần được giao và feedback liên quan.
+
+### Default composition
+
+1. Saved-view tabs dạng underline, không dùng pill.
+2. Unified filter bar: search, stage, risk, assignee; filter khác nằm trong `More filters`.
+3. Dense table là surface chính.
+4. Selection mở side inspector; full visual review mở QA Queue.
+5. Bulk bar chỉ xuất hiện khi có selection.
+
+### Table columns
+
+- checkbox;
+- frame thumbnail;
+- case / class;
+- issue type;
+- risk + evidence indicator;
+- batch;
+- owner;
+- workflow stage;
+- age / updated;
+- unresolved comments;
+- overflow action.
+
+### Stage rail
+
+`Detected → Assigned → Annotated → Review → Rework → Resolved`
+
+Board view có thể được thêm sau nhưng chỉ nhóm theo stage; không xây Kanban trang trí hoặc drag/drop nếu backend chưa có transaction assignment an toàn.
+
+### Bulk actions
+
+- Assign / reassign.
+- Change priority.
+- Start review.
+- Add to batch.
+- Skip with reason.
+- Select all filtered results phải là action tách biệt với select current page.
+
+### Request changes flow
+
+Form ngắn gồm reason category, target, comment, assignee và blocking flag. Sau submit:
+
+1. tạo blocking comment;
+2. chuyển task sang `changes_requested`;
+3. trả task về annotator;
+4. ghi audit event;
+5. gửi notification;
+6. hiển thị snapshot revision trong thread.
+
+## 24. Datasets / Runs — intake to release control plane
+
+### Job
+
+Quản lý customer data, dataset version, batch, assignment, run và release readiness trong một control plane trực quan.
+
+### First viewport
+
+- Dense dataset/version list hoặc tree ở trái.
+- Dataset lifecycle rail ở trung tâm:
+
+```text
+Intake → Validate → Batch → Assign → Label → Review → Approve → Export
+```
+
+- Context drawer bên phải cho selected batch/run.
+
+### Primary visuals
+
+- Segmented progress bar theo lifecycle, không dùng một dãy progress card.
+- Coverage heatmap theo scene/sequence.
+- Workload allocation theo annotator bằng horizontal bars.
+- Blocking issues list có owner và retry/resolve action.
+- Run comparison chỉ hiển thị delta với run trước: pass rate, risk cases, processing errors, rule/model version.
+- Scene/frame preview dùng ảnh thật để user kiểm tra scope.
+
+### Role actions
+
+| Reviewer | Annotator | Admin / ML Engineer |
+| --- | --- | --- |
+| Create batch | View assigned scope | Start run |
+| Assign frames | Open assigned tasks | Configure evaluation |
+| Mark release ready | View batch instructions | Retry failed stage |
+| Inspect blockers | View comments | View logs / compare version |
+
+### Production truth
+
+- Phân biệt rõ `official`, `smoke fallback` và `mock` bằng provenance, không chỉ bằng màu.
+- Không hiển thị calibration score trước khi có evaluation set và công thức được xác nhận.
+- Ingestion error hiển thị stage, timestamp, scope và retry action; không dùng paragraph mô tả hạ tầng.
+
+## 25. Reports — question-led decision workspace
+
+### Job
+
+Trả lời bốn câu hỏi có thể hành động, không trở thành gallery biểu đồ.
+
+### Tabs
+
+1. **Quality** — label quality đang tốt lên hay xấu đi?
+2. **Operations** — backlog nằm ở đâu và workflow chậm tại stage nào?
+3. **Agent** — Agent đồng thuận với reviewer đến đâu và drift ở rule/model nào?
+4. **Release** — dataset version đã đủ điều kiện export chưa?
+
+### Shared filter bar
+
+Dataset, split, batch/run, time range, issue type, stage và assignee. Filter đồng bộ URL; export là secondary action cùng toolbar, không đặt trong một card giải thích riêng.
+
+### Visual plan
+
+| Tab | Visual chính | Drill-through |
+| --- | --- | --- |
+| Quality | quality trend, issue mix, class × issue heatmap, rework rate | filtered Cases |
+| Operations | workflow funnel, stage cycle time, backlog aging, workload balance | Queue hoặc Cases |
+| Agent | reviewer disagreement, false-positive pattern, precision/recall by version | calibration samples |
+| Release | approved coverage, blockers, unresolved comments, run freshness | Dataset batch |
+
+Ưu tiên stacked trends, horizontal bars, heatmap và bullet charts. Hạn chế donut vì khó so sánh. Mỗi chart phải có tooltip, accessible summary/table và click-to-filter.
+
+### Measurement ethics
+
+- Không xếp hạng annotator chỉ bằng tốc độ.
+- People analytics phải có approval, rework, difficulty và sample size context.
+- Metric thiếu denominator hoặc telemetry hiển thị `Not tracked`, không dùng `0`.
+- Không tạo một quality score tổng hợp che mất nguồn lỗi.
+
+## 26. Button and control system
+
+### Hierarchy
+
+- **Primary**: tiến workflow (`Approve`, `Assign`, `Submit for review`, `Run agent`). Tối đa một primary trong mỗi vùng hành động.
+- **Secondary**: mở công cụ hoặc tác vụ hỗ trợ (`Open editor`, `Export`, `Save view`).
+- **Ghost**: navigation hoặc thao tác phụ ít rủi ro.
+- **Danger**: destructive/irreversible; không dùng cho backlog bình thường.
+- **IconButton**: chỉ dùng familiar symbols; bắt buộc tooltip và accessible name.
+
+### Dimensions and labels
+
+- Standard button: 36px; compact table button: 32px; icon button desktop: 32×32px.
+- Touch target trên tablet/mobile tối thiểu 44px.
+- Radius 6px; không dùng pill cho command button.
+- Label bắt đầu bằng động từ, tối đa 2–3 từ.
+- Loading giữ nguyên width, thay leading icon bằng spinner và khóa double-submit.
+- Disabled phải có lý do; permission denied không được giả làm disabled state.
+
+### Contextual actions
+
+- Bulk actions nằm trong sticky selection bar, không rải button trên mỗi row.
+- Rare actions nằm trong overflow menu.
+- Action tác động trên hơn 20 items hoặc destructive phải confirm với số lượng/scope.
+- Partial failure phải báo số thành công/thất bại và cho retry phần lỗi.
+- Toast có `Undo` chỉ khi backend support transaction đảo ngược an toàn.
+
+## 27. Color and data-visualization rules
+
+- 80–90% màn hình là neutral canvas/surfaces.
+- Teal xuất hiện dưới 5% diện tích và chỉ dành cho focus, active path hoặc primary action.
+- Success, warning, danger và info luôn kèm icon/text, không truyền nghĩa chỉ bằng màu.
+- `Unreviewed` là neutral, không phải danger.
+- Annotation overlay dùng palette riêng: ground truth, prediction và selection không tái sử dụng status colors.
+- Chart palette bắt đầu từ neutral + brand; semantic color chỉ dùng khi dữ liệu thật sự là semantic status.
+- Không dùng gradient trang trí, glow, shadow card hoặc colored border stripe.
+- Font tối thiểu 12px trong workspace; loại toàn bộ label 7–10px hiện tại.
+
+## 28. Responsive contract
+
+| Viewport | Capability |
+| --- | --- |
+| ≥1440px | Full three-column workbench, persistent inspector, full table |
+| 1200–1439px | Filter drawer, inspector hẹp, vẫn hỗ trợ full review |
+| 1024–1199px | Table + drawer; viewer và inspector không mở đồng thời |
+| 768–1023px | Triage, assignment, comment, simple approval; charts một cột |
+| <768px | Inbox, status, comment, notification và quick approval có giới hạn |
+
+Mobile/tablet fallback:
+
+- Editor, bbox resize, frame comparison và bulk operation hiển thị `Optimized for desktop`.
+- Fallback giải thích ngắn lý do và giữ deep link để mở lại trên PC.
+- Không render desktop table bị ép nhỏ; chuyển sang compact row list.
+- Không hiển thị bảy icon navigation trên một hàng.
+
+## 29. Backend and domain dependencies
+
+### Có thể làm UI-first
+
+- Giảm prose, đổi hierarchy và layout.
+- Role-aware Overview bằng dữ liệu hiện có.
+- Unified filter bar, saved-view presentation và side inspector.
+- Button hierarchy, semantic color, keyboard/focus và responsive fallback.
+- Reports tabs và chart composition trên metrics hiện có.
+
+### Cần API/domain trước khi UI được coi là hoàn chỉnh
+
+- Batch và frame-task assignment.
+- Workflow stage tách khỏi review outcome.
+- Reservation/lock cho reviewer.
+- Anchored threaded comments và blocking resolution.
+- Notification/inbox theo role.
+- Return-to-reviewer routing.
+- Workload, cycle-time và backlog-aging telemetry.
+- Agent calibration sample, rule/model version comparison và disagreement labels.
+- Frozen release object và release-readiness contract.
+
+Không mock các capability này như đã tồn tại trong production UI. Trong demo, phải gắn nhãn `Demo workflow` hoặc dùng data fixture có contract rõ.
+
+## 30. Rollout plan
+
+### Phase A — Workflow contract
+
+- Chốt domain objects, state transitions, role permission và event audit.
+- Tạo fixture realistic cho một vòng approve và một vòng request-changes/rework.
+- Chốt URL state cần giữ giữa Queue, Cases và Editor.
+
+### Phase B — Shared interaction foundation
+
+- Button/IconButton, tooltip, filter bar, saved views, bulk bar, drawer, toast và skeleton.
+- Chuẩn hóa table density, chart wrapper, empty/loading/error state.
+- Loại font dưới 12px và decorative grid khỏi workspace text pages.
+
+### Phase C — QA Cases + QA Queue
+
+- Xây case registry, assignment, comment/rework và focused review workbench.
+- Đây là vertical slice đầu tiên phải demo end-to-end đủ ba role.
+
+### Phase D — Datasets / Runs
+
+- Intake, lifecycle rail, batch creation, frame assignment, run delta và release readiness.
+
+### Phase E — Role-aware Overview
+
+- Lắp các deep link và actionable summaries từ workflow thật.
+- Overview làm sau Queue/Cases/Dataset để không tạo metric giả hoặc duplicated state.
+
+### Phase F — Reports + Agent calibration
+
+- Quality, Operations, Agent và Release tabs.
+- Mọi chart drill-through về dữ liệu nguồn.
+
+### Phase G — Responsive and production hardening
+
+- Desktop 1440/1280, tablet 1024/768 và mobile 390.
+- Keyboard, screen reader, contrast, performance và visual regression.
+
+## 31. Acceptance metrics
+
+### User outcomes
+
+- Time-to-first-case từ Overview.
+- Assignment latency từ batch ready đến annotator nhận task.
+- Review turnaround từ submitted đến decision.
+- Correction loop count mỗi task.
+- Cases per focused session, không dùng đơn độc để xếp hạng người dùng.
+- Tỷ lệ unresolved blocking comments.
+- Agent false-positive/disagreement theo rule/model version.
+
+### UX gates
+
+- Mỗi viewport chỉ có một dominant action theo role/stage.
+- Không có page-level horizontal overflow.
+- Không có text/control overlap ở bốn viewport chuẩn.
+- Không có body/control text dưới 12px desktop.
+- Severity/stage không phụ thuộc màu đơn thuần.
+- Loading không gây layout shift đáng kể.
+- Error cục bộ không xóa dữ liệu còn dùng được.
+- Tất cả chart có text summary và drill-through.
+- Full keyboard path: Overview → Queue → Case → Editor → Case → next task.
+
+## 32. Market references
+
+Các pattern được tham khảo, không sao chép trực tiếp:
+
+- [Scale Rapid Pipelines](https://scale.com/docs/rapid-or-pipelines): attempt/review và vòng rejected quay lại annotation.
+- [Scale Rapid Production](https://scale.com/docs/rapid-or-production): calibration, training/evaluation tasks và quality monitoring.
+- [Labelbox Workflows](https://docs.labelbox.com/docs/workflows): multi-step review/rework, assignment và task caps.
+- [Encord Project Analytics](https://docs.encord.com/platform-documentation/Annotate/annotate-projects/annotate-project-analytics): throughput, review outcome và stage-specific analytics.
+- [Encord Consensus Workflows](https://docs.encord.com/platform-documentation/Annotate/annotate-projects/annotate-workflows-consensus): role visibility, reviewer comparison và queue monitoring.
+- [V7/Darwin Workflows](https://docs.v7labs.com/docs/use-workflows-to-manage-your-projects): annotate → review → complete và conditional routing.
+- [V7 Review Stage](https://docs.v7labs.com/docs/the-review-stage): approve/reject branches và assignment cho reviewer.
+- [V7 Assign and Complete Tasks](https://docs.v7labs.com/docs/assign-and-complete-tasks): manual assignment, send-to-review và comment giữa stages.
+
+Điều cần tránh là copy enterprise workflow builder quá sớm. Label Guardian nên giữ workflow cố định, dễ demo và có audit tốt trước; node-based customization chỉ có giá trị khi khách hàng thật sự cần nhiều pipeline khác nhau.

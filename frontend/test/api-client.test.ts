@@ -117,6 +117,6 @@ test("dataset client lets the backend choose its configured default split", asyn
   };
   try {
     await labelGuardianApiV1.listRealDatasetFrameSamples(undefined);
-    assert.equal(requestedUrl, "/api/v1/dataset/frame-samples?limit=8&offset=0");
+    assert.equal(requestedUrl, "/api/v1/dataset/frame-samples?limit=100&offset=0");
   } finally { globalThis.fetch = originalFetch; }
 });

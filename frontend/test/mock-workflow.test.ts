@@ -69,6 +69,35 @@ test("role switch and review actions update mock state", () => {
   assert.equal(state.reviewDecisions.at(-1)?.reason, "False positive mock");
 });
 
+test("assignment, anchored feedback and rework use workflow stage independently", () => {
+  const repository = new MockRepository();
+  let state = repository.seed();
+
+  state = repository.requestChanges(
+    state,
+    "finding-001",
+    "user-reviewer",
+    "user-annotator",
+    "Tighten the box around the vehicle before resubmitting.",
+    "geometry",
+  );
+  const requested = state.findings.find((finding) => finding.id === "finding-001");
+  assert.equal(requested?.workflowStage, "changes_requested");
+  assert.equal(requested?.assigneeId, "user-annotator");
+  assert.equal(state.feedbackComments.at(-1)?.blocking, true);
+  assert.equal(state.feedbackComments.at(-1)?.targetType, "bbox");
+
+  state = repository.resubmitFinding(
+    state,
+    "finding-001",
+    "user-annotator",
+    "Updated the box and checked adjacent frames.",
+  );
+  assert.equal(state.findings.find((finding) => finding.id === "finding-001")?.workflowStage, "resubmitted");
+  assert.equal(state.feedbackComments.at(-1)?.resolved, true);
+  assert.equal(state.reviewDecisions.at(-1)?.action, "resubmit");
+});
+
 test("repository proposal protects original and records approval", () => {
   const repository = new MockRepository();
   let state = repository.seed();

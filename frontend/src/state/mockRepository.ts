@@ -111,6 +111,25 @@ export class MockRepository implements LabelGuardianRepository {
     return this.review.assignFinding(state, findingId, assigneeId, userId);
   }
 
+  requestChanges(
+    state: MockState,
+    findingId: string,
+    userId: string,
+    assigneeId: string,
+    feedback: string,
+    reasonCategory: "geometry" | "class" | "missing_label" | "tracking" | "other",
+  ): MockState {
+    return this.review.requestChanges(state, findingId, userId, assigneeId, feedback, reasonCategory);
+  }
+
+  resubmitFinding(state: MockState, findingId: string, userId: string, note?: string): MockState {
+    return this.review.resubmitFinding(state, findingId, userId, note);
+  }
+
+  resolveFeedback(state: MockState, commentId: string, userId: string): MockState {
+    return this.review.resolveFeedback(state, commentId, userId);
+  }
+
   reset(): MockState {
     return createInitialMockState();
   }

@@ -28,8 +28,8 @@ test("editor zoom keeps an anchor point and exposes themed navigation controls",
   assert.doesNotMatch(editorSource, /event\.button === 1/);
   assert.match(editorSource, /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/);
   assert.match(editorSource, /className="editor-zoom-slider"/);
-  assert.match(editorSource, /className="editor-frame-group"/);
-  assert.match(editorSource, /className="editor-camera-strip"/);
+  assert.match(editorSource, /className="editor-nav-selectors"/);
+  assert.match(editorSource, /className="editor-camera-grid-physical"/);
   assert.match(editorStyles, /::-webkit-slider-thumb/);
   assert.match(editorStyles, /::-webkit-scrollbar-thumb/);
   assert.match(editorStyles, /\.editor-save-note-section textarea[\s\S]*?color: #fff;[\s\S]*?background: #070b11;/);

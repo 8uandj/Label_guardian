@@ -6,6 +6,7 @@ import { Badge, Button, Card, SectionHeading, StatCard } from "../components/ui"
 import { ApiDemoNotice } from "../components/ApiDemoNotice";
 import { cloudDatasets } from "../config/cloudDataset";
 import type { FindingType, MockState, Severity } from "../domain/types";
+import { MockReportsWorkspace } from "./MockReportsWorkspace";
 
 const findingTypeLabels: Record<FindingType, string> = {
   box_misalignment: "Box lệch vị trí",
@@ -72,6 +73,10 @@ export function ReportsView({ state }: { state: MockState }) {
     const timeoutId = window.setTimeout(() => setExportState("idle"), 3200);
     return () => window.clearTimeout(timeoutId);
   }, [exportState]);
+
+  if (!apiDataSourceEnabled) {
+    return <MockReportsWorkspace state={state} />;
+  }
 
   if (apiDataSourceEnabled) {
     const typeCounts = apiCases.reduce<Record<string, number>>((counts, qaCase) => { counts[qaCase.errorType] = (counts[qaCase.errorType] ?? 0) + 1; return counts; }, {});

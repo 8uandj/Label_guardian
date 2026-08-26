@@ -1,4 +1,4 @@
-import type { AnnotationRecord, MockState, ReviewAction, ReviewStatus } from "../../domain/types.ts";
+import type { AnnotationRecord, FeedbackComment, MockState, ReviewAction, ReviewStatus } from "../../domain/types.ts";
 import type { AnnotationChanges } from "../repository.ts";
 
 const now = () => new Date().toISOString();
@@ -22,7 +22,25 @@ export class MockReviewOperations {
       ...state,
       findings: state.findings.map((item) =>
         item.id === findingId
-          ? { ...item, status: toStatus, updatedAt: timestamp }
+          ? {
+              ...item,
+              status: toStatus,
+              workflowStage: toStatus === "in_review"
+                ? "in_review"
+                : ["confirmed", "corrected", "rejected"].includes(toStatus)
+                  ? "approved"
+                  : item.workflowStage,
+              outcome: toStatus === "confirmed"
+                ? "confirmed_issue"
+                : toStatus === "corrected"
+                  ? "corrected"
+                  : toStatus === "rejected"
+                    ? "false_positive"
+                    : toStatus === "skipped"
+                      ? "skipped"
+                      : item.outcome,
+              updatedAt: timestamp,
+            }
           : item,
       ),
       reviewDecisions: [
@@ -269,7 +287,12 @@ export class MockReviewOperations {
       ...state,
       findings: state.findings.map((item) =>
         item.id === findingId
-          ? { ...item, assigneeId, updatedAt: timestamp }
+          ? {
+              ...item,
+              assigneeId,
+              workflowStage: item.workflowStage === "unassigned" ? "assigned" : item.workflowStage,
+              updatedAt: timestamp,
+            }
           : item,
       ),
       reviewDecisions: [
@@ -285,6 +308,114 @@ export class MockReviewOperations {
           toStatus: finding.status,
         },
       ],
+      lastUpdatedAt: timestamp,
+    };
+  }
+
+  requestChanges(
+    state: MockState,
+    findingId: string,
+    userId: string,
+    assigneeId: string,
+    feedback: string,
+    reasonCategory: FeedbackComment["reasonCategory"],
+  ): MockState {
+    const finding = state.findings.find((item) => item.id === findingId);
+    if (!finding || !feedback.trim()) return state;
+    const timestamp = now();
+    const latestRevision = Math.max(
+      1,
+      ...state.annotations.filter((item) => item.frameId === finding.frameId).map((item) => item.version),
+    );
+    const comment: FeedbackComment = {
+      id: `comment-${state.feedbackComments.length + 1}`,
+      findingId,
+      authorId: userId,
+      targetType: finding.annotationId ? "bbox" : "frame",
+      targetId: finding.annotationId ?? finding.frameId,
+      annotationRevision: latestRevision,
+      reasonCategory,
+      body: feedback.trim(),
+      blocking: true,
+      resolved: false,
+      createdAt: timestamp,
+    };
+    return {
+      ...state,
+      findings: state.findings.map((item) => item.id === findingId
+        ? {
+            ...item,
+            assigneeId,
+            workflowStage: "changes_requested",
+            status: "in_review",
+            outcome: undefined,
+            updatedAt: timestamp,
+          }
+        : item),
+      feedbackComments: [...state.feedbackComments, comment],
+      reviewDecisions: [...state.reviewDecisions, {
+        id: `decision-${state.reviewDecisions.length + 1}`,
+        findingId,
+        action: "request_changes",
+        userId,
+        timestamp,
+        reason: feedback.trim(),
+        fromStatus: finding.status,
+        toStatus: "in_review",
+      }],
+      lastUpdatedAt: timestamp,
+    };
+  }
+
+  resubmitFinding(state: MockState, findingId: string, userId: string, note?: string): MockState {
+    const finding = state.findings.find((item) => item.id === findingId);
+    if (!finding || finding.workflowStage !== "changes_requested") return state;
+    const timestamp = now();
+    return {
+      ...state,
+      findings: state.findings.map((item) => item.id === findingId
+        ? { ...item, workflowStage: "resubmitted", status: "in_review", updatedAt: timestamp }
+        : item),
+      feedbackComments: state.feedbackComments.map((comment) =>
+        comment.findingId === findingId && comment.blocking && !comment.resolved
+          ? { ...comment, resolved: true, resolvedAt: timestamp, resolvedBy: userId }
+          : comment,
+      ),
+      reviewDecisions: [...state.reviewDecisions, {
+        id: `decision-${state.reviewDecisions.length + 1}`,
+        findingId,
+        action: "resubmit",
+        userId,
+        timestamp,
+        reason: note?.trim() || "Annotation rework submitted",
+        fromStatus: finding.status,
+        toStatus: "in_review",
+      }],
+      lastUpdatedAt: timestamp,
+    };
+  }
+
+  resolveFeedback(state: MockState, commentId: string, userId: string): MockState {
+    const comment = state.feedbackComments.find((item) => item.id === commentId);
+    if (!comment || comment.resolved) return state;
+    const finding = state.findings.find((item) => item.id === comment.findingId);
+    if (!finding) return state;
+    const timestamp = now();
+    return {
+      ...state,
+      feedbackComments: state.feedbackComments.map((item) => item.id === commentId
+        ? { ...item, resolved: true, resolvedAt: timestamp, resolvedBy: userId }
+        : item),
+      reviewDecisions: [...state.reviewDecisions, {
+        id: `decision-${state.reviewDecisions.length + 1}`,
+        findingId: finding.id,
+        action: "resolve_comment",
+        userId,
+        timestamp,
+        reason: comment.body,
+        fromStatus: finding.status,
+        toStatus: finding.status,
+      }],
       lastUpdatedAt: timestamp,
     };
   }

@@ -6,6 +6,17 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Hand,
+  ImageOff,
+  Maximize2,
+  Minus,
+  MousePointer2,
+  Plus,
+  Ruler,
+} from "lucide-react";
 import { Badge, Button } from "../../../components/ui";
 import type { Finding, MockState } from "../../../domain/types";
 
@@ -75,7 +86,7 @@ export function MockQueueComparisonViewer({
   if (!finding || !frame) {
     return (
       <div className="queue-comparison-empty">
-        <span>◇</span>
+        <ImageOff aria-hidden="true" size={24} />
         <strong>Chọn một case để mở viewer</strong>
         <small>Viewer chỉ dùng để so sánh GT và Prediction.</small>
       </div>
@@ -136,9 +147,9 @@ export function MockQueueComparisonViewer({
 
       <div className="queue-viewer-toolbar">
         <div className="viewer-tool-group" aria-label="Công cụ quan sát">
-          <button className={tool === "select" ? "is-active" : ""} type="button" onClick={() => setTool("select")} aria-label="Chọn object">↖</button>
-          <button className={tool === "pan" ? "is-active" : ""} type="button" onClick={() => setTool("pan")} aria-label="Di chuyển khung nhìn">✥</button>
-          <button className={tool === "measure" ? "is-active" : ""} type="button" onClick={() => setTool("measure")} aria-label="Đo khoảng cách">⌁</button>
+          <button className={tool === "select" ? "is-active" : ""} type="button" onClick={() => setTool("select")} aria-label="Chọn object" title="Chọn object"><MousePointer2 size={15} /></button>
+          <button className={tool === "pan" ? "is-active" : ""} type="button" onClick={() => setTool("pan")} aria-label="Di chuyển khung nhìn" title="Di chuyển khung nhìn"><Hand size={15} /></button>
+          <button className={tool === "measure" ? "is-active" : ""} type="button" onClick={() => setTool("measure")} aria-label="Đo khoảng cách" title="Đo khoảng cách"><Ruler size={15} /></button>
           <span className="viewer-readonly-divider" />
           <Button
             size="sm"
@@ -147,7 +158,7 @@ export function MockQueueComparisonViewer({
               setZoom(100);
               setPan({ x: 0, y: 0 });
             }}
-          >Vừa khung</Button>
+          ><Maximize2 size={14} /> Vừa khung</Button>
         </div>
 
         <div className="viewer-compare-controls">
@@ -157,9 +168,9 @@ export function MockQueueComparisonViewer({
             <button className={mode === "prediction" ? "is-active" : ""} type="button" onClick={() => setMode("prediction")}>Prediction</button>
             <button className={mode === "both" ? "is-active" : ""} type="button" onClick={() => setMode("both")}>Cả hai</button>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => setZoom((current) => Math.max(75, current - 25))}>−</Button>
+          <Button size="sm" variant="ghost" onClick={() => setZoom((current) => Math.max(75, current - 25))} aria-label="Thu nhỏ" title="Thu nhỏ"><Minus size={14} /></Button>
           <span className="viewer-zoom-value">{zoom}%</span>
-          <Button size="sm" variant="ghost" onClick={() => setZoom((current) => Math.min(175, current + 25))}>+</Button>
+          <Button size="sm" variant="ghost" onClick={() => setZoom((current) => Math.min(175, current + 25))} aria-label="Phóng to" title="Phóng to"><Plus size={14} /></Button>
         </div>
       </div>
 
@@ -227,7 +238,7 @@ export function MockQueueComparisonViewer({
       </div>
 
       <div className="queue-viewer-timeline">
-        <Button size="sm" variant="ghost" disabled={frameIndex <= 0} onClick={() => moveFrame(-1)}>‹</Button>
+        <Button size="sm" variant="ghost" disabled={frameIndex <= 0} onClick={() => moveFrame(-1)} aria-label="Frame trước" title="Frame trước"><ChevronLeft size={15} /></Button>
         <strong>{frame.frameNumber}</strong>
         <span>/ {sceneFrames.at(-1)?.frameNumber ?? frame.frameNumber}</span>
         <input
@@ -244,7 +255,7 @@ export function MockQueueComparisonViewer({
           }}
           aria-label="Chọn frame trong sequence"
         />
-        <Button size="sm" variant="ghost" disabled={frameIndex >= sceneFrames.length - 1} onClick={() => moveFrame(1)}>›</Button>
+        <Button size="sm" variant="ghost" disabled={frameIndex >= sceneFrames.length - 1} onClick={() => moveFrame(1)} aria-label="Frame tiếp theo" title="Frame tiếp theo"><ChevronRight size={15} /></Button>
         <label>
           <span className="sr-only">Tốc độ phát</span>
           <select value={fps} onChange={(event) => setFps(event.target.value)}>

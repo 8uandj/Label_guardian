@@ -1,5 +1,5 @@
 import { isApiDataSourceEnabled } from "../../api/labelGuardianApi";
-import { MockQAQueueView } from "./MockQAQueueView";
+import { MockWorkQueueView } from "./MockWorkQueueView";
 import { RealDataQAView } from "../../views/RealDataQAView";
 
 export function QAQueueView({
@@ -11,5 +11,5 @@ export function QAQueueView({
 }) {
   return isApiDataSourceEnabled()
     ? <div className="page-container"><RealDataQAView /></div>
-    : <MockQAQueueView onOpenFinding={onOpenFinding} onOpenEditor={onOpenEditor} />;
+    : <MockWorkQueueView onOpenFinding={onOpenFinding} onOpenEditor={onOpenEditor} />;
 }

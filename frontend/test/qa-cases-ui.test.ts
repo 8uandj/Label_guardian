@@ -86,7 +86,7 @@ test("API dataset filter updates the URL-scoped dataset", () => {
   const apiQueueSource = readSource("../src/features/qa-queue/ApiQAQueueView.tsx");
 
   assert.match(apiQueueSource, /value={scopedDataset}/);
-  assert.match(apiQueueSource, /setSearchParameters\(\{ dataset: event\.target\.value, split: scopedSplit \}\)/);
+  assert.match(apiQueueSource, /setSearchParameters\(\{ dataset: event\.target\.value, split: "product" \}\)/);
   assert.doesNotMatch(apiQueueSource, /<select value="active" disabled>/);
 });
 

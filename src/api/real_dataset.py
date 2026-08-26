@@ -701,24 +701,42 @@ async def _list_database_frame_samples(
     for object_row in object_rows:
         objects_by_image[object_row.image_id].append(object_row)
     results: list[RealDatasetFrameSample] = []
+    # Collect all cameras across all page groups, build frame results without
+    # revisions first, then apply revisions in ONE batched query instead of
+    # calling _apply_latest_revisions once per frame group (N+1 problem).
+    all_cameras_ordered: list[tuple[tuple[str, str], list[tuple[QAImage, str]]]] = []
     for (sequence_id, sample_id), camera_rows in page_groups:
         camera_rows.sort(key=lambda item: (_CAMERA_ORDER.get(item[1], 99), item[1]))
-        cameras = [
-            await _db_image_to_contract(
-                session,
-                row,
-                split=selected_split,
-                objects=objects_by_image[row.id],
+        all_cameras_ordered.append(((sequence_id, sample_id), camera_rows))
+
+    # Build flat camera list for single batched revision lookup
+    flat_cameras: list[RealDatasetImage] = []
+    for _, camera_rows in all_cameras_ordered:
+        for row, _ in camera_rows:
+            flat_cameras.append(
+                await _db_image_to_contract(
+                    session,
+                    row,
+                    split=selected_split,
+                    objects=objects_by_image[row.id],
+                )
             )
-            for row, _ in camera_rows
-        ]
-        cameras = await _apply_latest_revisions(
-            session,
-            service,
-            cameras,
-            split=selected_split,
-            dataset=dataset,
-        )
+
+    # Single batch revision query for ALL cameras on this page
+    flat_cameras = await _apply_latest_revisions(
+        session,
+        service,
+        flat_cameras,
+        split=selected_split,
+        dataset=dataset,
+    )
+
+    # Re-group cameras back into frame samples
+    camera_index = 0
+    for (sequence_id, sample_id), camera_rows in all_cameras_ordered:
+        n = len(camera_rows)
+        cameras = flat_cameras[camera_index : camera_index + n]
+        camera_index += n
         results.append(
             RealDatasetFrameSample(
                 id=f"{sequence_id}/{sample_id}",
@@ -757,6 +775,7 @@ async def _list_database_frame_samples(
         available_datasets=available_datasets,
         classes=list(class_rows),
     )
+
 
 
 async def _list_filesystem_frame_samples(

@@ -5,17 +5,17 @@
 .real-data-controls select { min-width: 100px; min-height: 34px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; padding: 0 10px; }
 .real-data-workspace { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
 .real-data-browser { padding: 12px; max-height: calc(100vh - 210px); overflow: auto; }
-.real-data-browser-header { margin-bottom: 10px; font-size: 11px; }
-.real-data-browser-header span { color: var(--muted); }
+.real-data-browser-header { margin-bottom: 10px; font-size: 11px; color: #0f172a; }
+.real-data-browser-header span { color: #475569; }
 .real-data-samples { display: grid; gap: 10px; }
 .real-data-samples > section { padding: 7px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-subtle, #f7f9fc); }
 .real-data-samples > section.is-selected { border-color: color-mix(in srgb, var(--blue) 55%, var(--line)); background: color-mix(in srgb, var(--blue) 7%, var(--surface, #fff)); }
-.real-data-sample-heading { display: grid; width: 100%; grid-template-columns: 1fr auto; gap: 3px 12px; padding: 2px 3px 8px; border: 0; color: var(--text); background: transparent; text-align: left; cursor: pointer; }
+.real-data-sample-heading { display: grid; width: 100%; grid-template-columns: 1fr auto; gap: 3px 12px; padding: 2px 3px 8px; border: 0; color: #0f172a; background: transparent; text-align: left; cursor: pointer; }
 .real-data-sample-heading > span { display: flex; flex-direction: column; gap: 2px; }
 .real-data-sample-heading > span:nth-child(2) { align-items: flex-end; }
-.real-data-sample-heading strong { font-size: 10px; }
-.real-data-sample-heading small { color: var(--muted); font-size: 8px; }
-.real-data-sample-heading code { grid-column: 1 / -1; overflow: hidden; color: var(--faint); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.real-data-sample-heading strong { font-size: 10px; color: #0f172a; }
+.real-data-sample-heading small { color: #475569; font-size: 8px; }
+.real-data-sample-heading code { grid-column: 1 / -1; overflow: hidden; color: #64748b; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .real-data-thumbnails { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .real-data-thumbnails button { overflow: hidden; padding: 0; border: 2px solid transparent; border-radius: 9px; background: #f7f9fc; text-align: left; cursor: pointer; }
 .real-data-thumbnails button.is-selected { border-color: var(--blue); box-shadow: 0 0 0 2px rgb(37 99 235 / 12%); }

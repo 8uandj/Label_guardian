@@ -275,6 +275,13 @@ export function AnnotatorWorkspaceView({
       }
     }
   };
+
+  const stripRef = useRef<HTMLDivElement>(null);
+  const handleWheelScroll = (e: ReactWheelEvent<HTMLDivElement>) => {
+    if (stripRef.current) {
+      stripRef.current.scrollLeft += e.deltaY;
+    }
+  };
   const annotationQuery = useImageAnnotationsQuery(
     split,
     selectedImageId || undefined,
@@ -1449,7 +1456,11 @@ export function AnnotatorWorkspaceView({
         </div>
 
         {/* 10-Frame Sequence Strip (Middle Section) */}
-        <div className="editor-frame-strip">
+        <div 
+          className="editor-frame-strip"
+          ref={stripRef}
+          onWheel={handleWheelScroll}
+        >
           {paginatedSamples.map((sample, sampleIndex) => {
             const absoluteFrameNum = pageIndex * 10 + sampleIndex + 1;
             const isSampleActive = sample.id === selectedSampleId;
@@ -1494,7 +1505,7 @@ export function AnnotatorWorkspaceView({
         </div>
 
         {/* Playback, Page Changer, Jump to Frame, and Counter Controls (Right Column) */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
           {/* Row 1: Camera Playback & Frame Jump */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <form onSubmit={handleJumpSubmit} className="editor-jump-container" style={{ margin: 0 }}>

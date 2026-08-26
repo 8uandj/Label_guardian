@@ -14,7 +14,7 @@ from typing import Annotated, cast
 from urllib.parse import urlparse
 
 from PIL import Image
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from google.api_core.exceptions import NotFound
 from sqlalchemy import and_, func, or_, select
@@ -50,6 +50,39 @@ def _get_process_gcs_client():
     if _process_gcs_client is None:
         _process_gcs_client = create_gcs_storage_client(IngestionSettings())
     return _process_gcs_client
+
+_cache_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+async def _evict_cache_if_needed():
+    def do_evict():
+        try:
+            cache_root = _gcs_cache_root()
+            original_dir = cache_root / "original"
+            if original_dir.exists():
+                size = sum(f.stat().st_size for f in original_dir.glob("*") if f.is_file())
+                if size > 10 * 1024 * 1024 * 1024:
+                    files = [(f, f.stat().st_mtime) for f in original_dir.glob("*") if f.is_file()]
+                    files.sort(key=lambda x: x[1])
+                    for f, _ in files[:len(files)//4]:
+                        try:
+                            f.unlink(missing_ok=True)
+                        except OSError:
+                            pass
+            thumb_dir = cache_root / "thumbnails"
+            if thumb_dir.exists():
+                size = sum(f.stat().st_size for f in thumb_dir.glob("*") if f.is_file())
+                if size > 2 * 1024 * 1024 * 1024:
+                    files = [(f, f.stat().st_mtime) for f in thumb_dir.glob("*") if f.is_file()]
+                    files.sort(key=lambda x: x[1])
+                    for f, _ in files[:len(files)//4]:
+                        try:
+                            f.unlink(missing_ok=True)
+                        except OSError:
+                            pass
+        except Exception:
+            pass
+    await asyncio.to_thread(do_evict)
+
 
 router = APIRouter(
     prefix="/dataset",
@@ -875,6 +908,7 @@ async def _get_database_image_row(
 @router.get("/images", response_model=RealDatasetImageList)
 async def list_real_dataset_images(
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
     split: str | None = Query(default=None),
     dataset: str | None = Query(default=None),
     limit: int = Query(default=24, ge=1, le=100),
@@ -906,6 +940,7 @@ async def list_real_dataset_images(
 @router.get("/frame-samples", response_model=RealDatasetFrameSampleList)
 async def list_real_dataset_frame_samples(
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
     split: str | None = Query(default=None),
     dataset: str | None = Query(default=None),
     sequence_id: str | None = Query(default=None),
@@ -963,6 +998,7 @@ async def get_real_dataset_image(
     split: str,
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db_session),
 ) -> RealDatasetImage:
     try:
@@ -1016,6 +1052,7 @@ async def get_real_dataset_image_content(
     split: str,
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db_session),
     size: str | None = Query(default=None),
 ) -> FileResponse | StreamingResponse | Response:
@@ -1028,6 +1065,10 @@ async def get_real_dataset_image_content(
         if is_thumbnail:
             thumb_path = _gcs_cache_root() / "thumbnails" / f"{image_id}.webp"
             if thumb_path.exists():
+                try:
+                    os.utime(thumb_path, None)
+                except OSError:
+                    pass
                 return FileResponse(thumb_path, media_type="image/webp", headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
         if service.dataset_backend == "database":
@@ -1040,36 +1081,51 @@ async def get_real_dataset_image_content(
             image_row = await _get_database_image_row(session, service, image_id, split=split)
             
             if is_thumbnail:
-                data, _ = await asyncio.to_thread(_download_gcs_image, image_row)
-                thumb_bytes = await asyncio.to_thread(_generate_thumbnail, data)
-                thumb_path.parent.mkdir(parents=True, exist_ok=True)
-                tmp_path = thumb_path.with_name(f"{thumb_path.name}.tmp-{uuid.uuid4()}")
-                tmp_path.write_bytes(thumb_bytes)
-                os.replace(tmp_path, thumb_path)
+                async with _cache_locks[f"thumb_{image_id}"]:
+                    if thumb_path.exists():
+                        try:
+                            os.utime(thumb_path, None)
+                        except OSError:
+                            pass
+                        return FileResponse(thumb_path, media_type="image/webp", headers={"Cache-Control": "private, max-age=31536000, immutable"})
+                    data, _ = await asyncio.to_thread(_download_gcs_image, image_row)
+                    thumb_bytes = await asyncio.to_thread(_generate_thumbnail, data)
+                    thumb_path.parent.mkdir(parents=True, exist_ok=True)
+                    tmp_path = thumb_path.with_name(f"{thumb_path.name}.tmp-{uuid.uuid4()}")
+                    tmp_path.write_bytes(thumb_bytes)
+                    os.replace(tmp_path, thumb_path)
+                background_tasks.add_task(_evict_cache_if_needed)
                 return FileResponse(thumb_path, media_type="image/webp", headers={"Cache-Control": "private, max-age=31536000, immutable"})
             
+            import pathlib
             ext = pathlib.Path(image_row.filename).suffix if hasattr(image_row, "filename") and image_row.filename else ".jpg"
             full_path = _gcs_cache_root() / "original" / f"{image_id}{ext}"
             
             import mimetypes
             content_type = mimetypes.guess_type(image_row.filename)[0] if hasattr(image_row, "filename") and image_row.filename else "image/jpeg"
             
-            if full_path.exists():
-                return FileResponse(full_path, media_type=content_type, headers={"Cache-Control": "private, max-age=31536000, immutable"})
+            async with _cache_locks[f"full_{image_id}"]:
+                if full_path.exists():
+                    try:
+                        os.utime(full_path, None)
+                    except OSError:
+                        pass
+                    return FileResponse(full_path, media_type=content_type, headers={"Cache-Control": "private, max-age=31536000, immutable"})
+                    
+                data, dl_content_type = await asyncio.to_thread(_download_gcs_image, image_row)
+                content_type = dl_content_type or content_type
                 
-            data, dl_content_type = await asyncio.to_thread(_download_gcs_image, image_row)
-            content_type = dl_content_type or content_type
-            
-            try:
-                full_path.parent.mkdir(parents=True, exist_ok=True)
-                tmp_path = full_path.with_name(f"{full_path.name}.tmp-{uuid.uuid4()}")
-                tmp_path.write_bytes(data)
-                os.replace(tmp_path, full_path)
-            except Exception as e:
-                import logging
-                logging.warning(f"Failed to cache full image to disk: {e}")
-                
-            return Response(content=data, media_type=content_type, headers={"Cache-Control": "private, max-age=31536000, immutable"})
+                try:
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    tmp_path = full_path.with_name(f"{full_path.name}.tmp-{uuid.uuid4()}")
+                    tmp_path.write_bytes(data)
+                    os.replace(tmp_path, full_path)
+                    background_tasks.add_task(_evict_cache_if_needed)
+                except Exception as e:
+                    import logging
+                    logging.warning(f"Failed to cache full image to disk: {e}")
+                    
+                return Response(content=data, media_type=content_type, headers={"Cache-Control": "private, max-age=31536000, immutable"})
         path = service.image_path(split, image_id)
         if is_thumbnail:
             return await _serve_generated_thumbnail(path, thumb_path)
@@ -1089,6 +1145,7 @@ async def get_real_dataset_pointcloud_content(
     sequence_id: str,
     sample_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
 ) -> StreamingResponse:
     try:
         configured_path = f"{service.dataset_id}/{service.dataset_version}"
@@ -1122,6 +1179,7 @@ async def evaluate_real_dataset_image(
     split: str,
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
     _operator: Annotated[AuthenticatedUser, Depends(require_roles("reviewer", "admin"))],
     force: bool = Query(default=False),
     persist: bool = Query(default=False),
@@ -1193,6 +1251,7 @@ async def get_image_annotations(
     split: str,
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db_session),
 ) -> AnnotationDocument:
     try:
@@ -1214,6 +1273,7 @@ async def save_image_annotations(
     image_id: str,
     request: AnnotationSaveRequest,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
     current_user: Annotated[
         AuthenticatedUser,
         Depends(require_roles("annotator", "reviewer", "admin")),
@@ -1246,6 +1306,7 @@ async def get_image_annotation_history(
     split: str,
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db_session),
 ) -> AnnotationRevisionList:
     image = await _base_editor_image(session, service, split=split, image_id=image_id)
@@ -1265,6 +1326,7 @@ async def restore_image_annotations(
     image_id: str,
     request: AnnotationRestoreRequest,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
+    background_tasks: BackgroundTasks,
     current_user: Annotated[
         AuthenticatedUser,
         Depends(require_roles("annotator", "reviewer", "admin")),

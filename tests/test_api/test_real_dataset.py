@@ -15,8 +15,14 @@ from src.api.real_dataset import (
 )
 from src.config import Settings
 from src.main import create_app
-from src.models.ingestion import QAImage
-from src.models.real_dataset_schemas import RealDatasetImage
+from src.models.inference_schemas import (
+    InferenceDetection,
+    InferenceImageReference,
+    InferenceRequest,
+    InferenceResponse,
+)
+from src.models.ingestion import QAImage, QAObject, QAReviewStatus
+from src.models.real_dataset_schemas import RealDatasetBBox, RealDatasetImage
 from src.services.real_dataset_service import RealDatasetService
 
 
@@ -48,6 +54,26 @@ class CloudImageAgent(FakeAgent):
         self.image_path = Path(state["image_path"])
         self.image_payload = self.image_path.read_bytes()
         return await super().ainvoke(state)
+
+
+class FakeInferenceClient:
+    def __init__(self) -> None:
+        self.requests: list[InferenceRequest] = []
+
+    async def detect(self, request: InferenceRequest) -> InferenceResponse:
+        self.requests.append(request)
+        return InferenceResponse(
+            model_name="remote-yolo",
+            model_version="remote-yolo@2026-08-27",
+            detections=[
+                InferenceDetection(
+                    class_name="car",
+                    bbox=RealDatasetBBox(x1=10, y1=10, x2=30, y2=30),
+                    confidence=0.88,
+                )
+            ],
+            latency_ms={"inference": 12.5},
+        )
 
 
 @pytest.mark.parametrize(
@@ -279,6 +305,136 @@ async def test_evaluation_scopes_identity_to_annotation_revision_and_supported_t
         }
     ]
     assert cloud_agent.last_state["metadata"]["unsupported_ground_truth_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_remote_inference_uses_gcs_reference_and_injected_predictions(tmp_path):
+    agent = FakeAgent()
+    inference_client = FakeInferenceClient()
+    service = RealDatasetService(
+        tmp_path,
+        dataset_backend="database",
+        dataset_id="nuscenes",
+        dataset_version="v1.0-mini",
+        agent_runner=agent,
+        inference_client=inference_client,
+    )
+    image = RealDatasetImage.model_validate(
+        {
+            "id": "cloud-image",
+            "split": "smoke",
+            "dataset": "nuscenes",
+            "release": "v1.0-mini",
+            "filename": "frame.jpg",
+            "width": 100,
+            "height": 80,
+            "labelCount": 1,
+            "labels": [
+                {
+                    "id": "car-label",
+                    "className": "vehicle.car",
+                    "bbox": {"x1": 10, "y1": 10, "x2": 30, "y2": 30},
+                }
+            ],
+            "imageUrl": "/api/v1/dataset/images/smoke/cloud-image/content",
+        }
+    )
+    reference = InferenceImageReference(
+        dataset_id="nuscenes",
+        dataset_version="v1.0-mini",
+        split="smoke",
+        image_id="cloud-image",
+        bucket="label-guardian",
+        object_key="datasets/official/nuscenes/v1.0-mini/smoke/frames/scene/sample/CAM_FRONT.jpg",
+    )
+
+    evaluation = await service.evaluate(
+        "smoke",
+        "cloud-image",
+        image_override=image,
+        image_reference=reference,
+    )
+
+    assert service.uses_remote_inference is True
+    assert inference_client.requests == [InferenceRequest(image=reference)]
+    assert agent.last_state is not None
+    assert agent.last_state["image_path"] == image.image_url
+    assert agent.last_state["pred_labels"] == [
+        {
+            "class_name": "car",
+            "bbox": {"x1": 10.0, "y1": 10.0, "x2": 30.0, "y2": 30.0},
+            "confidence": 0.88,
+        }
+    ]
+    assert evaluation.model_name == "remote-yolo@2026-08-27"
+
+
+@pytest.mark.asyncio
+async def test_database_evaluate_remote_inference_does_not_download_image_bytes(
+    tmp_path,
+    postgres_async_session_factory,
+    postgres_test_database,
+    monkeypatch,
+):
+    async with postgres_async_session_factory() as session:
+        image = QAImage(
+            source_image_id="remote-image",
+            filename="images/smoke/remote-image.jpg",
+            width=100,
+            height=80,
+            dataset="nuscenes",
+            release="v1.0-mini",
+            storage_key="datasets/official/nuscenes/v1.0-mini/smoke/frames/scene/sample/CAM_FRONT.jpg",
+        )
+        session.add(image)
+        await session.flush()
+        session.add(
+            QAObject(
+                image_id=image.id,
+                source_object_key="object-1",
+                label="vehicle.car",
+                xmin=10,
+                ymin=10,
+                xmax=30,
+                ymax=30,
+                review_status=QAReviewStatus.NEEDS_REVIEW,
+            )
+        )
+        await session.commit()
+
+    def fail_download(_image):
+        raise AssertionError("App Service should not download image bytes when remote inference is enabled.")
+
+    monkeypatch.setattr("src.api.real_dataset._download_gcs_image", fail_download)
+    agent = FakeAgent()
+    inference_client = FakeInferenceClient()
+    service = RealDatasetService(
+        tmp_path,
+        dataset_backend="database",
+        dataset_id="nuscenes",
+        dataset_version="v1.0-mini",
+        default_split="smoke",
+        agent_runner=agent,
+        inference_client=inference_client,
+    )
+    application = create_app(
+        settings=Settings(
+            app_env="test",
+            auth_enabled=False,
+            database_url=postgres_test_database.async_url,
+            _env_file=None,
+        ),
+        db_session_factory=postgres_async_session_factory,
+        real_dataset_service=service,
+    )
+
+    async with application.router.lifespan_context(application):
+        async with AsyncClient(transport=ASGITransport(app=application), base_url="http://test") as client:
+            response = await client.post("/api/v1/dataset/images/smoke/remote-image/evaluate")
+
+    assert response.status_code == 200
+    assert inference_client.requests[0].image.object_key == image.storage_key
+    assert response.json()["modelName"] == "remote-yolo@2026-08-27"
 
 
 @pytest.mark.asyncio

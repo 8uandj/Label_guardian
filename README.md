@@ -81,6 +81,6 @@ PostgreSQL test phải là database riêng. Xem [docs/TESTING.md](docs/TESTING.m
 
 ## Deploy
 
-Production dùng Vercel cho React/Vite SPA, Railway cho FastAPI container, Supabase cho Auth/PostgreSQL và GCS private cho ảnh. Railway chạy migration ở pre-deploy và health check `/ready`; Vercel đã có SPA rewrite trong `frontend/vercel.json`.
+Production dùng Vercel cho React/Vite SPA, Railway cho FastAPI container, Supabase cho Auth/PostgreSQL và GCS private cho ảnh. Railway chạy migration ở pre-deploy và health check `/ready`; Vercel đã có SPA rewrite trong `frontend/vercel.json`. Khi cần detector GPU riêng, App Service bật `INFERENCE_MODE=remote` và trỏ đến Inference Service qua `INFERENCE_SERVICE_URL`.
 
 Xem checklist, biến môi trường mẫu và smoke test tại [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md).

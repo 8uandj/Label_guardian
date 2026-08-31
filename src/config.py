@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     label_qa_llm_provider: Literal["auto", "openai", "gemini"] = "auto"
     google_api_key: SecretStr | None = None
     google_model_name: str = "gemini-flash-latest"
+    # Production can keep QA orchestration in this API while delegating detector
+    # execution to a separate GPU service.
+    inference_mode: Literal["local", "remote"] = "local"
+    inference_service_url: str | None = None
+    inference_service_token: SecretStr | None = None
+    inference_request_timeout_seconds: float = Field(default=30.0, gt=0.0, le=300.0)
     # CPU-safe production default. Use a larger checkpoint only on a dedicated
     # inference service with enough memory/compute.
     yolo_model_name: str = "yolo26n.pt"
@@ -92,6 +98,8 @@ class Settings(BaseSettings):
             raise ValueError("AUTH_ENABLED must be true in production.")
         if self.auth_enabled and not self.supabase_url:
             raise ValueError("SUPABASE_URL is required when AUTH_ENABLED is true.")
+        if self.inference_mode == "remote" and not self.inference_service_url:
+            raise ValueError("INFERENCE_SERVICE_URL is required when INFERENCE_MODE=remote.")
         if self.app_env == "production":
             if self.dataset_backend != "database":
                 raise ValueError("DATASET_BACKEND must be database in production.")
@@ -188,6 +196,42 @@ class IngestionSettings(BaseSettings):
         if self.gcs_public_url:
             return f"{self.gcs_public_url.rstrip('/')}/{key}"
         return f"gs://{self.bucket_name}/{key}"
+
+
+class InferenceServiceSettings(BaseSettings):
+    """Configuration for the standalone detector runtime."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    inference_app_name: str = "Label Guardian Inference Service"
+    inference_app_version: str = "0.1.0"
+    inference_app_env: Literal["development", "production", "test"] = "development"
+    inference_auth_token: SecretStr | None = None
+    inference_model_name: str = "yolo26x.pt"
+    inference_model_version: str | None = None
+    inference_model_cache_dir: Path = Path("/tmp/label-guardian-models")
+    inference_confidence_threshold: float = Field(default=0.25, ge=0.0, le=1.0)
+    inference_allowed_object_prefixes: str = "datasets/official"
+
+    @field_validator("inference_auth_token", mode="before")
+    @classmethod
+    def normalize_empty_inference_auth_token(cls, value: object) -> object | None:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+    @property
+    def allowed_object_prefix_values(self) -> list[str]:
+        return [
+            prefix.strip().strip("/")
+            for prefix in self.inference_allowed_object_prefixes.split(",")
+            if prefix.strip().strip("/")
+        ]
 
 
 @lru_cache

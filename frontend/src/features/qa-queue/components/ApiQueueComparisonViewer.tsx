@@ -102,8 +102,12 @@ export function ApiQueueComparisonViewer({ qaCase }: { qaCase?: QaCaseDto }) {
 
   const sourceWidth = qaCase.evidence.imageWidth ?? frameSize.width;
   const sourceHeight = qaCase.evidence.imageHeight ?? frameSize.height;
-  const displayedLabels = labels.filter((label) =>
-    apiBoxIntersectsImage(label.bbox, sourceWidth, sourceHeight),
+  const displayedLabels = labels.filter(
+    // Ẩn nhãn có class YOLO không hỗ trợ (normalizedClassName === null).
+    // Case cũ chưa có field này (undefined) thì vẫn hiển thị.
+    (label) =>
+      label.normalizedClassName !== null &&
+      apiBoxIntersectsImage(label.bbox, sourceWidth, sourceHeight),
   );
   const displayedPredictions = predictions.filter((prediction) =>
     boxIntersectsImage(predictionBox(prediction), sourceWidth, sourceHeight),
@@ -271,7 +275,7 @@ export function ApiQueueComparisonViewer({ qaCase }: { qaCase?: QaCaseDto }) {
                         sourceHeight,
                       )}
                     >
-                      <span>{label.className} · GT</span>
+                      <span>{label.normalizedClassName ?? label.className} · GT</span>
                     </div>
                   ))
                 : null}

@@ -3,10 +3,11 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, computed_field, model_validator
 
 from src.models.agent_schemas import LabelQAReport
 from src.models.base_schemas import ApiModel
+from src.services.yolo import canonical_class_names, canonical_detection_class
 
 
 class RealDatasetBBox(ApiModel):
@@ -23,6 +24,15 @@ class RealDatasetLabel(ApiModel):
     track_id: str | None = None
     attributes: dict[str, bool | float | int | str] = Field(default_factory=dict)
 
+    @computed_field
+    @property
+    def normalized_class_name(self) -> str | None:
+        """Tên class theo taxonomy YOLO/COCO để hiển thị, ``None`` nếu YOLO không có class này.
+
+        ``class_name`` gốc vẫn là nguồn sự thật cho annotation editor.
+        """
+        return canonical_detection_class(self.class_name)
+
     @model_validator(mode="after")
     def has_positive_area(self) -> "RealDatasetLabel":
         if self.bbox.x2 <= self.bbox.x1 or self.bbox.y2 <= self.bbox.y1:
@@ -35,6 +45,11 @@ class RealDatasetPrediction(ApiModel):
     class_name: str
     bbox: RealDatasetBBox
     confidence: float
+
+    @computed_field
+    @property
+    def normalized_class_name(self) -> str | None:
+        return canonical_detection_class(self.class_name)
 
 
 class RealDatasetMatch(ApiModel):
@@ -73,6 +88,11 @@ class RealDatasetImageList(ApiModel):
     available_datasets: list[str] = Field(default_factory=list)
     classes: list[str]
 
+    @computed_field
+    @property
+    def normalized_classes(self) -> list[str]:
+        return canonical_class_names(self.classes)
+
 
 class RealDatasetFrameSample(ApiModel):
     id: str
@@ -96,6 +116,11 @@ class RealDatasetFrameSampleList(ApiModel):
     available_splits: list[str]
     available_datasets: list[str] = Field(default_factory=list)
     classes: list[str]
+
+    @computed_field
+    @property
+    def normalized_classes(self) -> list[str]:
+        return canonical_class_names(self.classes)
 
 
 class RealDatasetEvaluation(ApiModel):

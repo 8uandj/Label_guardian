@@ -65,6 +65,20 @@ def canonical_detection_class(class_name: str) -> str | None:
     return canonical if canonical in _TARGET_CLASS_SET else None
 
 
+def canonical_class_names(class_names: list[str]) -> list[str]:
+    """Chỉ giữ các class map được sang taxonomy YOLO/COCO, chuẩn hoá tên, bỏ trùng, giữ thứ tự.
+
+    Class không có tương ứng bên YOLO (traffic_cone, barrier, animal...) bị loại khỏi
+    danh sách -> UI không hiển thị.
+    """
+    seen: dict[str, None] = {}
+    for name in class_names:
+        canonical = canonical_detection_class(name)
+        if canonical is not None:
+            seen.setdefault(canonical, None)
+    return list(seen)
+
+
 @lru_cache
 def get_yolo_model_by_name(model_name: str) -> Any:
     """Load a YOLO checkpoint by name/path and cache it per runtime process."""

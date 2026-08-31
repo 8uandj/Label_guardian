@@ -13,6 +13,7 @@ from src.db.session import create_database_engine, create_session_factory
 from src.models.schemas import ServiceHealthResponse
 from src.services.auth_service import SupabaseJwtVerifier, TokenVerifier
 from src.services.google_cloud import create_gcs_storage_client
+from src.services.inference_client import RemoteInferenceClient
 from src.services.real_dataset_service import RealDatasetService
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,17 @@ def create_app(
         application.state.auth_verifier = auth_verifier or (
             SupabaseJwtVerifier(app_settings) if app_settings.auth_enabled else None
         )
+        inference_client = None
+        if app_settings.inference_mode == "remote":
+            inference_client = RemoteInferenceClient(
+                base_url=app_settings.inference_service_url or "",
+                token=(
+                    app_settings.inference_service_token.get_secret_value()
+                    if app_settings.inference_service_token
+                    else None
+                ),
+                timeout_seconds=app_settings.inference_request_timeout_seconds,
+            )
         application.state.real_dataset_service = real_dataset_service or RealDatasetService(
             app_settings.dataset_root,
             dataset_backend=app_settings.dataset_backend,
@@ -58,6 +70,7 @@ def create_app(
             dataset_version=app_settings.dataset_version,
             model_name=app_settings.yolo_model_name,
             evaluation_cache_entries=app_settings.agent_evaluation_cache_entries,
+            inference_client=inference_client,
         )
         logger.info("Starting %s in %s mode", app_settings.app_name, app_settings.app_env)
         try:

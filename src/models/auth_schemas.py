@@ -26,3 +26,13 @@ class ApplicationUserRoleUpdate(ApiModel):
 
 class ApplicationUserProfileUpdate(ApiModel):
     display_name: str = Field(min_length=1, max_length=255)
+
+
+class ApplicationUserStatusUpdate(ApiModel):
+    disabled: bool
+
+
+class ApplicationUserInvite(ApiModel):
+    email: str = Field(min_length=3, max_length=320)
+    display_name: str = Field(min_length=1, max_length=255)
+    role: ApplicationRole = "annotator"

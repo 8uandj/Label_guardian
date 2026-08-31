@@ -202,6 +202,59 @@ export interface AuthenticatedUserDto {
   disabled: boolean;
 }
 
+export interface AdminProjectDto {
+  id: string;
+  name: string;
+  customerName: string;
+  description?: string | null;
+  status: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface AdminSubmissionDto {
+  id: string;
+  projectId: string;
+  datasetType: string;
+  sourceMethod: string;
+  version: string;
+  split?: string | null;
+  status: string;
+  sourcePrefix?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUploadSessionDto {
+  assetId: string;
+  objectKey: string;
+  uploadUrl: string | null;
+  expiresIn: number;
+}
+
+export interface AdminBatchDto {
+  id: string;
+  projectId: string;
+  name: string;
+  instructions?: string | null;
+  scopeJson: Record<string, unknown>;
+  status: string;
+  reviewerId?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminTeamHealthDto {
+  generatedAt: string;
+  totalTasks: number;
+  byStage: Record<string, number>;
+  annotatorWorkload: Record<string, { assigned: number; wip: number; approved: number; changesRequested: number }>;
+  quality: { approvalRate: number | null; reworkRate: number | null };
+  ranking: null;
+}
+
 export interface ApplicationUserListDto {
   count: number;
   results: AuthenticatedUserDto[];

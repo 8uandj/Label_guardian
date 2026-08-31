@@ -66,6 +66,8 @@ class QaCaseService:
         dataset_id: str | None = None,
         source_split: str | None = None,
         source_image_id: str | None = None,
+        assigned_to: str | None = None,
+        source_image_ids: set[str] | None = None,
     ) -> QaCaseListResponse:
         count, cases = await self._qa_cases.list(
             session,
@@ -75,6 +77,8 @@ class QaCaseService:
             source_split=source_split,
             source_image_id=source_image_id,
             min_risk=min_risk,
+            assigned_to=assigned_to,
+            source_image_ids=source_image_ids,
             limit=limit,
             offset=offset,
         )

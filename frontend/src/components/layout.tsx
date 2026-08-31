@@ -38,6 +38,7 @@ const routeLabels: Record<PrimaryViewId, { en: string; vi: string }> = {
   "annotator-workspace": { en: "2D Editor", vi: "Trình sửa 2D" },
   reports: { en: "Reports", vi: "Báo cáo" },
   settings: { en: "Settings", vi: "Cài đặt" },
+  "admin-control-plane": { en: "Admin Control Plane", vi: "Quản trị vận hành" },
   "case-detail": { en: "Case Detail", vi: "Chi tiết Case" },
 };
 
@@ -50,6 +51,7 @@ export type PrimaryViewId =
   | "pipeline"
   | "annotator-workspace"
   | "settings"
+  | "admin-control-plane"
   | "case-detail";
 
 const routeIcons: Record<PrimaryViewId, LucideIcon> = {
@@ -61,6 +63,7 @@ const routeIcons: Record<PrimaryViewId, LucideIcon> = {
   pipeline: GitBranch,
   "annotator-workspace": Tags,
   settings: Settings,
+  "admin-control-plane": ShieldCheck,
   "case-detail": ShieldCheck,
 };
 
@@ -73,6 +76,7 @@ const routeOrder: Record<PrimaryViewId, number> = {
   "annotator-workspace": 5,
   reports: 6,
   settings: 7,
+  "admin-control-plane": 8,
   "case-detail": 8,
 };
 

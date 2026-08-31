@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session, get_real_dataset_service, require_roles
 from src.config import IngestionSettings
+from src.models.admin_control import FrameTask
 from src.models.auth_schemas import AuthenticatedUser
 from src.models.ingestion import QAImage, QAObject
 from src.models.real_dataset_schemas import (
@@ -132,7 +133,7 @@ def _dataset_release(service: RealDatasetService, dataset: str | None) -> tuple[
     """Resolve the canonical release served for each supported dataset."""
     selected_dataset = (dataset or service.dataset_id).lower()
     # All datasets use 'product' as the canonical release for production data.
-    release = "product"
+    release = service.dataset_version
     return selected_dataset, release
 
 
@@ -152,7 +153,7 @@ def _database_dataset_conditions(
     # All datasets use 'product' as the canonical release for production data.
     return (
         func.lower(QAImage.dataset) == selected_dataset,
-        QAImage.release == "product",
+        QAImage.release == service.dataset_version,
     )
 
 
@@ -827,10 +828,13 @@ async def _list_database_images(
     dataset: str | None,
     limit: int,
     offset: int,
+    allowed_image_ids: set[str] | None = None,
 ) -> RealDatasetImageList:
     selected_split = split or service.default_split
     base_conditions = list(_database_dataset_conditions(service, dataset))
     split_conditions = [*base_conditions, _database_image_split_condition(selected_split)]
+    if allowed_image_ids is not None:
+        split_conditions.append(QAImage.source_image_id.in_(allowed_image_ids))
     metadata_rows = (
         await session.execute(
             select(QAImage.storage_key, QAImage.filename, QAImage.dataset)
@@ -918,8 +922,8 @@ async def _get_database_image_row(
     # stale DATASET_VERSION (e.g. 'v1.0-mini') while all ingested images use
     # release='product'.
     supported_release = or_(
-        and_(func.lower(QAImage.dataset) == "nuscenes", QAImage.release == "product"),
-        and_(func.lower(QAImage.dataset) == "kitti", QAImage.release == "product"),
+        and_(func.lower(QAImage.dataset) == "nuscenes", QAImage.release == service.dataset_version),
+        and_(func.lower(QAImage.dataset) == "kitti", QAImage.release == service.dataset_version),
     )
     image = await session.scalar(
         select(QAImage).where(
@@ -938,6 +942,7 @@ async def _get_database_image_row(
 async def list_real_dataset_images(
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
     background_tasks: BackgroundTasks,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     split: str | None = Query(default=None),
     dataset: str | None = Query(default=None),
     limit: int = Query(default=24, ge=1, le=100),
@@ -945,6 +950,9 @@ async def list_real_dataset_images(
     session: AsyncSession = Depends(get_db_session),
 ) -> RealDatasetImageList:
     try:
+        allowed_image_ids: set[str] | None = None
+        if current_user.role == "annotator":
+            allowed_image_ids = set((await session.scalars(select(FrameTask.image_id).where(FrameTask.annotator_id == current_user.id))).all())
         if service.dataset_backend == "database":
             return await _list_database_images(
                 session,
@@ -953,8 +961,11 @@ async def list_real_dataset_images(
                 dataset=dataset,
                 limit=limit,
                 offset=offset,
+                allowed_image_ids=allowed_image_ids,
             )
         result = service.list_images(split=split, limit=limit, offset=offset)
+        if allowed_image_ids is not None:
+            result.results = [item for item in result.results if item.id in allowed_image_ids]
         result.results = await _apply_latest_revisions(
             session,
             service,
@@ -1049,9 +1060,11 @@ async def get_real_dataset_image(
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
     background_tasks: BackgroundTasks,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: AsyncSession = Depends(get_db_session),
 ) -> RealDatasetImage:
     try:
+        await _ensure_task_access(session, image_id, current_user)
         if service.dataset_backend == "database":
             try:
                 return await _get_database_image(session, service, image_id, split=split)
@@ -1103,6 +1116,7 @@ async def get_real_dataset_image_content(
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
     background_tasks: BackgroundTasks,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: AsyncSession = Depends(get_db_session),
     size: str | None = Query(default=None),
 ) -> FileResponse | StreamingResponse | Response:
@@ -1110,6 +1124,7 @@ async def get_real_dataset_image_content(
         raise HTTPException(status_code=400, detail="Invalid size parameter")
 
     try:
+        await _ensure_task_access(session, image_id, current_user)
         is_thumbnail = size == "thumbnail"
 
         if is_thumbnail:
@@ -1296,16 +1311,33 @@ async def _base_editor_image(
     return service.get_image(split, image_id)
 
 
+async def _ensure_task_access(session: AsyncSession, image_id: str, user: AuthenticatedUser) -> None:
+    """Enforce task-level visibility for the editor without breaking legacy data."""
+    if user.role == "admin":
+        return
+    tasks = list((await session.scalars(select(FrameTask).where(FrameTask.image_id == image_id))).all())
+    if not tasks:
+        if user.role == "annotator":
+            raise HTTPException(status_code=404, detail="This frame is not assigned to you.")
+        return
+    if user.role == "annotator" and not any(task.annotator_id == user.id for task in tasks):
+        raise HTTPException(status_code=404, detail="This frame is not assigned to you.")
+    if user.role == "reviewer" and not any(task.reviewer_id == user.id for task in tasks):
+        raise HTTPException(status_code=404, detail="This frame is not in your review batch.")
+
+
 @router.get("/images/{split}/{image_id}/annotations", response_model=AnnotationDocument)
 async def get_image_annotations(
     split: str,
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
     background_tasks: BackgroundTasks,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: AsyncSession = Depends(get_db_session),
 ) -> AnnotationDocument:
     try:
         image = await _base_editor_image(session, service, split=split, image_id=image_id)
+        await _ensure_task_access(session, image_id, current_user)
         dataset_id, dataset_version = _image_dataset_release(service, image)
         return await AnnotationEditorService.document(
             session,
@@ -1332,6 +1364,7 @@ async def save_image_annotations(
 ) -> AnnotationDocument:
     try:
         image = await _base_editor_image(session, service, split=split, image_id=image_id)
+        await _ensure_task_access(session, image_id, current_user)
         dataset_id, dataset_version = _image_dataset_release(service, image)
         return await AnnotationEditorService.save(
             session,
@@ -1357,9 +1390,11 @@ async def get_image_annotation_history(
     image_id: str,
     service: Annotated[RealDatasetService, Depends(get_real_dataset_service)],
     background_tasks: BackgroundTasks,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: AsyncSession = Depends(get_db_session),
 ) -> AnnotationRevisionList:
     image = await _base_editor_image(session, service, split=split, image_id=image_id)
+    await _ensure_task_access(session, image_id, current_user)
     dataset_id, dataset_version = _image_dataset_release(service, image)
     return await AnnotationEditorService.history(
         session,
@@ -1385,6 +1420,7 @@ async def restore_image_annotations(
 ) -> AnnotationDocument:
     try:
         image = await _base_editor_image(session, service, split=split, image_id=image_id)
+        await _ensure_task_access(session, image_id, current_user)
         dataset_id, dataset_version = _image_dataset_release(service, image)
         return await AnnotationEditorService.restore(
             session,

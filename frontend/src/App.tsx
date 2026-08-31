@@ -18,6 +18,7 @@ import { ReportsView } from "./views/ReportsView";
 import { DatasetRunView } from "./views/DatasetRunView";
 import { PipelineView } from "./views/PipelineView";
 import { SettingsView } from "./views/SettingsView";
+import { AdminControlPlaneView } from "./views/AdminControlPlaneView";
 import { LandingPage } from "./views/LandingPage";
 import { useMockData } from "./state/MockDataProvider";
 import { isApiDataSourceEnabled } from "./api/labelGuardianApi";
@@ -244,6 +245,7 @@ function App() {
           <Route path="/dataset-runs" element={<DatasetRunView />} />
           <Route path="/pipeline" element={<PipelineView />} />
           <Route path="/settings" element={<SettingsView />} />
+          <Route path="/admin" element={<AdminControlPlaneView />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </DemoStateBoundary>

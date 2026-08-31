@@ -82,6 +82,14 @@ export const appRoutes: AppRouteDefinition[] = [
     phase: "next",
     allowedRoles: ["admin"],
   },
+  {
+    id: "admin-control-plane",
+    label: "Admin Control Plane",
+    path: "/admin",
+    description: "Intake dữ liệu, quản trị team, phân công và bàn giao release.",
+    phase: "next",
+    allowedRoles: ["admin"],
+  },
 ];
 
 export const reviewWorkflow: Array<{

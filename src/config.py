@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     supabase_jwt_audience: str = "authenticated"
     supabase_jwt_secret: SecretStr | None = None
     supabase_jwks_url: str | None = None
+    supabase_service_role_key: SecretStr | None = None
     auth_bootstrap_admin_emails: str = ""
     auth_dev_user_id: str = "local-admin"
     auth_dev_user_email: str = "admin@label-guardian.local"

@@ -2,9 +2,11 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session, require_roles
+from src.models.admin_control import FrameTask
 from src.models.auth_schemas import AuthenticatedUser
 from src.models.qa_case_schemas import AuditLogListResponse, QaCaseListResponse, QaCaseResponse, QaCaseStatus
 from src.services.qa_case_service import QaCaseService
@@ -24,6 +26,7 @@ class QaCaseStatusRequest(BaseModel):
 
 @router.get("", response_model=QaCaseListResponse)
 async def list_qa_cases(
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     status: QaCaseStatus | None = Query(default=None),
     sequence_id: str | None = Query(default=None, alias="sequenceId"),
     dataset_id: str | None = Query(default=None, alias="datasetId"),
@@ -34,6 +37,11 @@ async def list_qa_cases(
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_db_session),
 ) -> QaCaseListResponse:
+    assigned_image_ids = None
+    if current_user.role == "reviewer":
+        task_ids = set((await session.scalars(select(FrameTask.image_id).where(FrameTask.reviewer_id == current_user.id))).all())
+        if task_ids:
+            assigned_image_ids = task_ids
     return await QaCaseService().list_cases(
         session,
         status=status,
@@ -42,16 +50,29 @@ async def list_qa_cases(
         source_split=source_split,
         source_image_id=source_image_id,
         min_risk=min_risk,
+        assigned_to=current_user.id if current_user.role == "annotator" else None,
+        source_image_ids=assigned_image_ids,
         limit=limit,
         offset=offset,
     )
 
 
 @router.get("/{case_id}", response_model=QaCaseResponse)
-async def get_qa_case(case_id: str, session: AsyncSession = Depends(get_db_session)) -> QaCaseResponse:
+async def get_qa_case(
+    case_id: str,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: AsyncSession = Depends(get_db_session),
+) -> QaCaseResponse:
     qa_case = await QaCaseService().get_case(session, case_id)
     if qa_case is None:
         raise HTTPException(status_code=404, detail="QA case was not found")
+    if current_user.role == "annotator" and qa_case.assigned_to != current_user.id:
+        raise HTTPException(status_code=404, detail="QA case was not found")
+    if current_user.role == "reviewer":
+        has_task = await session.scalar(select(FrameTask.id).where(FrameTask.image_id == qa_case.source_image_id, FrameTask.reviewer_id == current_user.id))
+        any_task = await session.scalar(select(FrameTask.id).where(FrameTask.image_id == qa_case.source_image_id))
+        if any_task is not None and has_task is None:
+            raise HTTPException(status_code=404, detail="QA case was not found")
     return qa_case
 
 

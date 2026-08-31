@@ -1,4 +1,4 @@
-"""Cloud Batch worker for official KITTI/nuScenes ingestion."""
+"""Cloud Batch worker for official and customer-uploaded dataset ingestion."""
 
 from __future__ import annotations
 
@@ -43,6 +43,26 @@ from src.services.ingestion.official_dataset_downloader import (
 )
 
 
+def _safe_extract_zip(archive_path: Path, destination: Path) -> None:
+    """Extract customer archives without allowing path traversal or links."""
+    destination.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            for member in archive.infolist():
+                if member.is_dir():
+                    continue
+                target = (destination / member.filename).resolve()
+                try:
+                    target.relative_to(destination.resolve())
+                except ValueError as error:
+                    raise DatasetDownloadError(f"Archive member escapes destination: {member.filename}") from error
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(member) as source, target.open("wb") as output:
+                    shutil.copyfileobj(source, output)
+    except (OSError, zipfile.BadZipFile) as error:
+        raise DatasetDownloadError(f"Could not extract customer archive: {archive_path}") from error
+
+
 class CloudStorageClient(Protocol):
     def upload_file(self, filename: str, bucket: str, key: str, **kwargs: Any) -> None: ...
 
@@ -62,15 +82,17 @@ class CloudStorageClient(Protocol):
 class CloudIngestionRequest(BaseModel):
     """Serializable request passed from Workflows/Cloud Run to Cloud Batch."""
 
-    dataset_type: Literal["kitti", "nuscenes"]
+    dataset_type: Literal["kitti", "nuscenes", "yolo"]
     release: str | None = None
     split: str = "smoke"
     max_frames: int | None = Field(default=None, ge=1)
-    source: Literal["official"] = "official"
+    source: Literal["official", "uploaded"] = "official"
     requested_by: str | None = None
     publish: bool = True
     run_id: str | None = None
     raw_urls: dict[str, str] = Field(default_factory=dict)
+    uploaded_object_keys: dict[str, str] = Field(default_factory=dict)
+    project_id: str | None = None
     max_blob_archives: int | None = Field(default=None, ge=1, le=10)
     modalities: list[Literal["camera", "labels", "calibration", "lidar"]] = Field(
         default_factory=lambda: ["camera", "labels", "calibration"]
@@ -81,7 +103,7 @@ class CloudIngestionRequest(BaseModel):
         if self.release:
             return self.release
         # KITTI product split uses 'product' release; all others use dataset-specific defaults.
-        if self.dataset_type == "kitti":
+        if self.dataset_type in {"kitti", "yolo"}:
             return "product" if self.split == "product" else "object"
         return "v1.0-mini"
 
@@ -334,6 +356,11 @@ class CloudIngestionWorker:
         self._write_checkpoint(request, "publish", {"resumed": False, "result": result_key})
 
     def raw_archive_keys(self, request: CloudIngestionRequest) -> dict[str, str]:
+        if request.source == "uploaded":
+            names = request.uploaded_object_keys or {"dataset.zip": ""}
+            return {name: (key or f"raw/uploads/{request.stable_run_id}/{name}") for name, key in names.items()}
+        if request.dataset_type == "yolo":
+            return {"dataset.zip": f"raw/official/yolo/archives/{request.stable_run_id}.zip"}
         if request.dataset_type == "nuscenes":
             if request.normalized_release == "v1.0-trainval":
                 blob_count = request.max_blob_archives or 10
@@ -367,7 +394,8 @@ class CloudIngestionWorker:
         )
 
     def canonical_prefix(self, request: CloudIngestionRequest) -> str:
-        return f"datasets/official/{request.dataset_type}/product"
+        root = f"projects/{request.project_id}/datasets" if request.project_id else "datasets/official"
+        return f"{root}/{request.dataset_type}/{request.normalized_release}"
 
     def _existing_sample_tokens(self, request: CloudIngestionRequest) -> set[str]:
         if self.session_factory is None:
@@ -395,6 +423,8 @@ class CloudIngestionWorker:
         shutil.rmtree(root / "dataset", ignore_errors=True)
         archive_root = root / "archives"
         dataset_root = root / "dataset" / ("nuscenes" if request.dataset_type == "nuscenes" else "kitti_object")
+        if request.dataset_type == "yolo":
+            dataset_root = root / "dataset"
         archive_keys = self.raw_archive_keys(request)
         selected_kitti_frames: set[str] | None = None
         for key in archive_keys.values():
@@ -422,7 +452,7 @@ class CloudIngestionWorker:
                 else:
                     _safe_extract_tar(archive_path, dataset_root)
                 archive_path.unlink(missing_ok=True)
-            else:
+            elif request.dataset_type == "kitti":
                 with self.storage_client.open_reader(self.settings.bucket_name, key) as archive:
                     self._extract_kitti_archive_subset(
                         archive,
@@ -431,6 +461,11 @@ class CloudIngestionWorker:
                         frame_ids=selected_kitti_frames,
                         include_lidar=request.includes_lidar,
                     )
+            else:
+                archive_path = archive_root / archive_name
+                self.storage_client.download_file(self.settings.bucket_name, key, str(archive_path))
+                _safe_extract_zip(archive_path, root / "dataset")
+                archive_path.unlink(missing_ok=True)
         return dataset_root
 
     def _extract_nuscenes_archive(
@@ -508,7 +543,7 @@ class CloudIngestionWorker:
             for row in json.loads(scene_path.read_text(encoding="utf-8"))
         } if scene_path.is_file() else {}
         filtered_samples = [
-            row for row in samples 
+            row for row in samples
             if not exclude_sample_tokens or row["token"] not in exclude_sample_tokens
         ]
         selected_sample_tokens = [
@@ -781,7 +816,7 @@ class CloudIngestionWorker:
                     select(QAImage).where(
                         QAImage.source_image_id == image.source_image_id,
                         QAImage.dataset == request.dataset_type,
-                        QAImage.release == "product",
+                        QAImage.release == request.normalized_release,
                     )
                 )
                 if db_image is None:
@@ -793,7 +828,7 @@ class CloudIngestionWorker:
                 db_image.object_url = self.settings.object_uri(object_key)
                 db_image.provider = request.dataset_type
                 db_image.dataset = request.dataset_type
-                db_image.release = "product"
+                db_image.release = request.normalized_release
                 db_image.split = "product"
                 db_image.modality = "camera"
                 db_image.asset_type = "image"

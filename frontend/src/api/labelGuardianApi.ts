@@ -1,6 +1,11 @@
 import type {
   AuthenticatedUserDto,
   ApplicationUserListDto,
+  AdminBatchDto,
+  AdminProjectDto,
+  AdminSubmissionDto,
+  AdminTeamHealthDto,
+  AdminUploadSessionDto,
   AnnotationDocumentDto,
   AnnotationRevisionListDto,
   PipelineRunDto,
@@ -123,6 +128,48 @@ export const labelGuardianApiV1 = {
       "PATCH",
       { role },
     );
+  },
+
+  updateApplicationUserStatus(userId: string, disabled: boolean, signal?: AbortSignal): Promise<AuthenticatedUserDto> {
+    return requestJson<AuthenticatedUserDto>(`${API_V1_PREFIX}/auth/users/${encodeURIComponent(userId)}/status`, signal, "PATCH", { disabled });
+  },
+
+  inviteApplicationUser(payload: { email: string; displayName: string; role: AuthenticatedUserDto["role"] }, signal?: AbortSignal): Promise<AuthenticatedUserDto> {
+    return requestJson<AuthenticatedUserDto>(`${API_V1_PREFIX}/auth/users/invite`, signal, "POST", payload);
+  },
+
+  listAdminProjects(signal?: AbortSignal): Promise<AdminProjectDto[]> {
+    return requestJson<AdminProjectDto[]>(`${API_V1_PREFIX}/control/projects`, signal);
+  },
+
+  createAdminProject(payload: { name: string; customerName: string; description?: string }, signal?: AbortSignal): Promise<AdminProjectDto> {
+    return requestJson<AdminProjectDto>(`${API_V1_PREFIX}/control/projects`, signal, "POST", payload);
+  },
+
+  createAdminSubmission(projectId: string, payload: { datasetType: "kitti" | "nuscenes" | "yolo"; sourceMethod: "upload" | "gcs_import"; version: string; split?: string; sourcePrefix?: string }, signal?: AbortSignal): Promise<AdminSubmissionDto> {
+    return requestJson<AdminSubmissionDto>(`${API_V1_PREFIX}/control/projects/${encodeURIComponent(projectId)}/submissions`, signal, "POST", payload);
+  },
+
+  createAdminUploadSession(submissionId: string, payload: { filename: string; contentType?: string; sizeBytes?: number; checksum?: string }, signal?: AbortSignal): Promise<AdminUploadSessionDto> {
+    return requestJson<AdminUploadSessionDto>(`${API_V1_PREFIX}/control/submissions/${encodeURIComponent(submissionId)}/assets`, signal, "POST", payload);
+  },
+
+  completeAdminUpload(submissionId: string, assetId: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
+    return requestJson<Record<string, unknown>>(`${API_V1_PREFIX}/control/submissions/${encodeURIComponent(submissionId)}/assets/${encodeURIComponent(assetId)}/complete`, signal, "POST");
+  },
+
+  startAdminSubmission(submissionId: string, signal?: AbortSignal): Promise<{ submissionId: string; status: string; runId: string; assetCount: number }> {
+    return requestJson<{ submissionId: string; status: string; runId: string; assetCount: number }>(`${API_V1_PREFIX}/control/submissions/${encodeURIComponent(submissionId)}/start`, signal, "POST");
+  },
+
+  listAdminBatches(projectId?: string, signal?: AbortSignal): Promise<AdminBatchDto[]> {
+    const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+    return requestJson<AdminBatchDto[]>(`${API_V1_PREFIX}/control/batches${query}`, signal);
+  },
+
+  getTeamHealth(projectId?: string, signal?: AbortSignal): Promise<AdminTeamHealthDto> {
+    const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+    return requestJson<AdminTeamHealthDto>(`${API_V1_PREFIX}/control/dashboard/team-health${query}`, signal);
   },
 
   listQaCases(

@@ -20,6 +20,8 @@ class QaCaseRepository:
         source_split: str | None = None,
         source_image_id: str | None = None,
         min_risk: int | None = None,
+        assigned_to: str | None = None,
+        source_image_ids: set[str] | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[int, list[QaCase]]:
@@ -38,6 +40,10 @@ class QaCaseRepository:
             conditions.append(QaCase.source_image_id == source_image_id)
         if min_risk is not None:
             conditions.append(QaCase.risk_score >= min_risk)
+        if assigned_to is not None:
+            conditions.append(QaCase.assigned_to == assigned_to)
+        if source_image_ids is not None:
+            conditions.append(QaCase.source_image_id.in_(source_image_ids))
         if conditions:
             query = query.where(*conditions)
             count_query = count_query.where(*conditions)

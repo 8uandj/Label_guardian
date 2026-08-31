@@ -15,6 +15,9 @@ export const apiQueryKeys = {
   annotationHistory: (split?: string, imageId?: string) =>
     ["api-v1", "dataset", "annotations", split, imageId, "history"] as const,
   applicationUsers: ["api-v1", "auth", "users"] as const,
+  adminProjects: ["api-v1", "control", "projects"] as const,
+  adminBatches: (projectId?: string) => ["api-v1", "control", "batches", projectId] as const,
+  teamHealth: (projectId?: string) => ["api-v1", "control", "team-health", projectId] as const,
 };
 
 export function useApplicationUsersQuery(enabled = true) {
@@ -31,6 +34,48 @@ export function useUpdateApplicationUserRoleMutation() {
     mutationFn: ({ userId, role }: { userId: string; role: "annotator" | "reviewer" | "admin" }) =>
       labelGuardianApiV1.updateApplicationUserRole(userId, role),
     onSuccess: async () => queryClient.invalidateQueries({ queryKey: apiQueryKeys.applicationUsers }),
+  });
+}
+
+export function useUpdateApplicationUserStatusMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, disabled }: { userId: string; disabled: boolean }) =>
+      labelGuardianApiV1.updateApplicationUserStatus(userId, disabled),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: apiQueryKeys.applicationUsers }),
+  });
+}
+
+export function useInviteApplicationUserMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { email: string; displayName: string; role: "annotator" | "reviewer" | "admin" }) =>
+      labelGuardianApiV1.inviteApplicationUser(payload),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: apiQueryKeys.applicationUsers }),
+  });
+}
+
+export function useAdminProjectsQuery(enabled = true) {
+  return useQuery({
+    queryKey: apiQueryKeys.adminProjects,
+    queryFn: ({ signal }) => labelGuardianApiV1.listAdminProjects(signal),
+    enabled,
+  });
+}
+
+export function useAdminBatchesQuery(projectId?: string, enabled = true) {
+  return useQuery({
+    queryKey: apiQueryKeys.adminBatches(projectId),
+    queryFn: ({ signal }) => labelGuardianApiV1.listAdminBatches(projectId, signal),
+    enabled,
+  });
+}
+
+export function useTeamHealthQuery(projectId?: string, enabled = true) {
+  return useQuery({
+    queryKey: apiQueryKeys.teamHealth(projectId),
+    queryFn: ({ signal }) => labelGuardianApiV1.getTeamHealth(projectId, signal),
+    enabled,
   });
 }
 
@@ -218,4 +263,3 @@ export function usePipelineRunsQuery(enabled = true) {
     enabled,
   });
 }
-

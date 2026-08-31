@@ -1,17 +1,25 @@
-import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useState, type CSSProperties, type FormEvent } from "react";
+import { roleLabels } from "../config/informationArchitecture";
 import authBackground from "../data/background.png";
+import type { Role, User } from "../domain/types";
 import { LoginVisualPanel } from "./LoginVisualPanel";
+
+const demoLoginRoles: Role[] = ["annotator", "reviewer", "admin"];
 
 export function AuthenticatedLoginScreen({
   loading,
   configurationError,
+  demoUsers,
   onSignIn,
+  onDemoSignIn,
   onRegister,
 }: {
   loading: boolean;
   configurationError?: string;
+  demoUsers: User[];
   onSignIn: (email: string, password: string) => Promise<void>;
+  onDemoSignIn: (role: Role) => Promise<void>;
   onRegister: (name: string, email: string, password: string) => Promise<string>;
 }) {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -21,6 +29,24 @@ export function AuthenticatedLoginScreen({
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [demoRoleLoading, setDemoRoleLoading] = useState<Role | null>(null);
+
+  const quickSignIn = async (role: Role) => {
+    setError("");
+    setMessage("");
+    setDemoRoleLoading(role);
+    try {
+      await onDemoSignIn(role);
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Unable to start the demo session.",
+      );
+    } finally {
+      setDemoRoleLoading(null);
+    }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -56,6 +82,47 @@ export function AuthenticatedLoginScreen({
                 ? "Đăng nhập bằng tài khoản Supabase Auth của workspace."
                 : "Tài khoản mới mặc định là Annotator; Admin có thể thay đổi vai trò sau."}
             </p>
+            {mode === "login" ? (
+              <section
+                className="demo-quick-login"
+                aria-labelledby="supabase-demo-login-title"
+              >
+                <div className="demo-quick-login-heading">
+                  <div>
+                    <strong id="supabase-demo-login-title">Quick demo access</strong>
+                    <span>Open a workspace instantly with any role.</span>
+                  </div>
+                  <small>No password required</small>
+                </div>
+                <div className="demo-quick-login-grid">
+                  {demoLoginRoles.map((role) => {
+                    const demoUser = demoUsers.find((user) => user.role === role);
+                    return (
+                      <button
+                        className={`demo-quick-role-button is-${role}`}
+                        type="button"
+                        key={role}
+                        aria-label={`Quick login as ${roleLabels[role]}`}
+                        disabled={loading || demoRoleLoading !== null}
+                        onClick={() => void quickSignIn(role)}
+                      >
+                        <span className="demo-role-avatar" aria-hidden="true">
+                          {demoUser?.avatarInitials ?? role.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span>
+                          <strong>{roleLabels[role]}</strong>
+                          <small>{demoUser?.name ?? "Demo user"}</small>
+                        </span>
+                        <ArrowRight size={14} aria-hidden="true" />
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="demo-login-divider">
+                  <span>or sign in with Supabase</span>
+                </div>
+              </section>
+            ) : null}
             <form className="login-form" onSubmit={submit}>
               {mode === "register" ? (
                 <label className="login-field">

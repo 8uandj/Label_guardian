@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -20,8 +21,10 @@ interface AuthContextValue {
   enabled: boolean;
   loading: boolean;
   user: User | null;
+  isDemoSession: boolean;
   error: string;
   signIn: (email: string, password: string) => Promise<void>;
+  signInDemo: (user: User) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<string>;
   signOut: () => Promise<void>;
 }
@@ -41,6 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const enabled = isSupabaseAuthEnabled();
   const [loading, setLoading] = useState(enabled);
   const [user, setUser] = useState<User | null>(null);
+  const [isDemoSession, setIsDemoSession] = useState(false);
+  const demoSessionRef = useRef(false);
   const [error, setError] = useState(authConfigurationError);
 
   const loadProfile = useCallback(async (accessToken: string) => {
@@ -52,6 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role: profile.role,
       avatarInitials: initialsFor(profile.displayName),
     };
+    demoSessionRef.current = false;
+    setIsDemoSession(false);
     setUser(mapped);
     setError("");
   }, []);
@@ -79,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return;
       if (!session) {
+        if (demoSessionRef.current) return;
         queryClient.clear();
         setUser(null);
         setLoading(false);
@@ -104,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       enabled,
       loading,
       user,
+      isDemoSession,
       error,
       signIn: async (email, password) => {
         if (!supabase) throw new Error(authConfigurationError || "Supabase Auth chưa được cấu hình.");
@@ -117,6 +126,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } finally {
           setLoading(false);
         }
+      },
+      signInDemo: async (demoUser) => {
+        if (supabase) {
+          const { data, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) throw sessionError;
+          if (data.session) {
+            const { error: signOutError } = await supabase.auth.signOut({
+              scope: "local",
+            });
+            if (signOutError) throw signOutError;
+          }
+        }
+        queryClient.clear();
+        demoSessionRef.current = true;
+        setIsDemoSession(true);
+        setUser(demoUser);
+        setError("");
       },
       signUp: async (name, email, password) => {
         if (!supabase) throw new Error(authConfigurationError || "Supabase Auth chưa được cấu hình.");
@@ -139,12 +165,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       signOut: async () => {
-        if (supabase) await supabase.auth.signOut();
+        if (!demoSessionRef.current && supabase) await supabase.auth.signOut();
         queryClient.clear();
+        demoSessionRef.current = false;
+        setIsDemoSession(false);
         setUser(null);
       },
     }),
-    [enabled, error, loadProfile, loading, queryClient, user],
+    [enabled, error, isDemoSession, loadProfile, loading, queryClient, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

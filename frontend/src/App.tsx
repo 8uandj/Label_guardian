@@ -121,6 +121,18 @@ function App() {
     navigateToView("overview");
   };
 
+  const handleDemoSignIn = async (role: Role) => {
+    const demoUser = authUsers.find((user) => user.role === role);
+    if (!demoUser) {
+      throw new Error(`No demo user is configured for ${role}.`);
+    }
+    await auth.signInDemo(demoUser);
+    actions.setRole(role);
+    routerNavigate(pathForDatasetView("overview", cloudDatasetId), {
+      replace: true,
+    });
+  };
+
   const handleRegister = (profile: Pick<User, "name" | "email" | "role">) => {
     const registeredUser: User = {
       ...profile,
@@ -144,6 +156,8 @@ function App() {
       <AuthenticatedLoginScreen
         loading={auth.loading}
         configurationError={auth.error}
+        demoUsers={authUsers}
+        onDemoSignIn={handleDemoSignIn}
         onSignIn={async (email, password) => {
           await auth.signIn(email, password);
           routerNavigate(pathForDatasetView("overview", cloudDatasetId), {

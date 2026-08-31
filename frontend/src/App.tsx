@@ -122,11 +122,7 @@ function App() {
   };
 
   const handleDemoSignIn = async (role: Role) => {
-    const demoUser = authUsers.find((user) => user.role === role);
-    if (!demoUser) {
-      throw new Error(`No demo user is configured for ${role}.`);
-    }
-    await auth.signInDemo(demoUser);
+    await auth.signInDemo(role);
     actions.setRole(role);
     routerNavigate(pathForDatasetView("overview", cloudDatasetId), {
       replace: true,

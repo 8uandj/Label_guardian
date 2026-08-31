@@ -99,7 +99,7 @@ export function AuthenticatedLoginScreen({
                     const demoUser = demoUsers.find((user) => user.role === role);
                     return (
                       <button
-                        className={`demo-quick-role-button is-${role}`}
+                        className={`demo-quick-role-button is-${role} ${role === "admin" ? "is-featured" : ""}`}
                         type="button"
                         key={role}
                         aria-label={`Quick login as ${roleLabels[role]}`}
@@ -111,7 +111,7 @@ export function AuthenticatedLoginScreen({
                         </span>
                         <span>
                           <strong>{roleLabels[role]}</strong>
-                          <small>{demoUser?.name ?? "Demo user"}</small>
+                            <small>{role === "admin" ? "Control plane access" : demoUser?.name ?? "Demo user"}</small>
                         </span>
                         <ArrowRight size={14} aria-hidden="true" />
                       </button>

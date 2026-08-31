@@ -66,3 +66,26 @@ test("mock and Supabase login modes share the complete visual panel", () => {
   assert.match(visualPanelSource, /Protect every label\./);
   assert.match(visualPanelSource, /className="visual-metrics"/);
 });
+
+test("Supabase login offers isolated quick access for every demo role", () => {
+  const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+  const loginSource = readFileSync(
+    new URL("../src/components/AuthenticatedLoginScreen.tsx", import.meta.url),
+    "utf8",
+  );
+  const authSource = readFileSync(
+    new URL("../src/auth/AuthProvider.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    loginSource,
+    /const demoLoginRoles: Role\[\] = \["annotator", "reviewer", "admin"\]/,
+  );
+  assert.match(loginSource, /or sign in with Supabase/);
+  assert.match(loginSource, /await onDemoSignIn\(role\)/);
+  assert.match(appSource, /onDemoSignIn=\{handleDemoSignIn\}/);
+  assert.match(appSource, /await auth\.signInDemo\(demoUser\)/);
+  assert.match(authSource, /scope: "local"/);
+  assert.match(authSource, /demoSessionRef\.current = true/);
+});

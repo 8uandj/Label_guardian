@@ -483,6 +483,158 @@
   line-height: 1.65;
 }
 
+.demo-quick-login {
+  margin-top: 22px;
+}
+
+.demo-quick-login-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.demo-quick-login-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.demo-quick-login-heading strong {
+  color: #dfe8f8;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.demo-quick-login-heading span {
+  color: #71809a;
+  font-size: 9px;
+}
+
+.demo-quick-login-heading > small {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(69, 215, 168, 0.22);
+  border-radius: 999px;
+  color: #7ce8c5;
+  background: rgba(69, 215, 168, 0.07);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.025em;
+}
+
+.demo-quick-login-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.demo-quick-role-button {
+  display: grid;
+  min-width: 0;
+  min-height: 66px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgba(144, 162, 194, 0.18);
+  border-radius: 13px;
+  color: #dfe8f8;
+  background: rgba(255, 255, 255, 0.025);
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.demo-quick-role-button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(124, 161, 255, 0.46);
+  background: rgba(90, 140, 255, 0.09);
+}
+
+.demo-quick-role-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+  transform: none;
+}
+
+.demo-quick-role-button:focus-visible {
+  outline: 2px solid #7ca1ff;
+  outline-offset: 3px;
+}
+
+.demo-quick-role-button > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.demo-quick-role-button strong,
+.demo-quick-role-button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-quick-role-button strong {
+  font-size: 9px;
+  font-weight: 760;
+}
+
+.demo-quick-role-button small {
+  color: #71809a;
+  font-size: 7px;
+}
+
+.demo-quick-role-button > svg {
+  color: #66758d;
+}
+
+.demo-role-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  color: #dfe8f8;
+  background: rgba(90, 140, 255, 0.16);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.demo-quick-role-button.is-annotator .demo-role-avatar {
+  background: rgba(69, 215, 168, 0.15);
+}
+
+.demo-quick-role-button.is-admin .demo-role-avatar {
+  background: rgba(188, 132, 255, 0.16);
+}
+
+.demo-login-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 -14px;
+  color: #566278;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.demo-login-divider::before,
+.demo-login-divider::after {
+  height: 1px;
+  flex: 1;
+  background: rgba(144, 162, 194, 0.13);
+  content: "";
+}
+
+.demo-login-divider span {
+  flex: 0 0 auto;
+}
+
 .login-form {
   display: flex;
   flex-direction: column;

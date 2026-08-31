@@ -4,6 +4,7 @@ import {
   Activity,
   BarChart3,
   Bell,
+  BookOpen,
   Check,
   Database,
   GitBranch,
@@ -39,6 +40,7 @@ const routeLabels: Record<PrimaryViewId, { en: string; vi: string }> = {
   reports: { en: "Reports", vi: "Báo cáo" },
   settings: { en: "Settings", vi: "Cài đặt" },
   "admin-control-plane": { en: "Admin Control Plane", vi: "Quản trị vận hành" },
+  tutorial: { en: "Tutorial", vi: "Hướng dẫn" },
   "case-detail": { en: "Case Detail", vi: "Chi tiết Case" },
 };
 
@@ -52,6 +54,7 @@ export type PrimaryViewId =
   | "annotator-workspace"
   | "settings"
   | "admin-control-plane"
+  | "tutorial"
   | "case-detail";
 
 const routeIcons: Record<PrimaryViewId, LucideIcon> = {
@@ -64,6 +67,7 @@ const routeIcons: Record<PrimaryViewId, LucideIcon> = {
   "annotator-workspace": Tags,
   settings: Settings,
   "admin-control-plane": ShieldCheck,
+  tutorial: BookOpen,
   "case-detail": ShieldCheck,
 };
 
@@ -77,7 +81,8 @@ const routeOrder: Record<PrimaryViewId, number> = {
   reports: 6,
   settings: 7,
   "admin-control-plane": 8,
-  "case-detail": 8,
+  tutorial: 9,
+  "case-detail": 10,
 };
 
 interface AppShellProps extends PropsWithChildren {

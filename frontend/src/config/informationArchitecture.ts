@@ -90,6 +90,14 @@ export const appRoutes: AppRouteDefinition[] = [
     phase: "next",
     allowedRoles: ["admin"],
   },
+  {
+    id: "tutorial",
+    label: "Hướng dẫn",
+    path: "/tutorial",
+    description: "Hướng dẫn bắt đầu và checklist theo từng vai trò.",
+    phase: "next",
+    allowedRoles: ["reviewer", "annotator", "admin"],
+  },
 ];
 
 export const reviewWorkflow: Array<{

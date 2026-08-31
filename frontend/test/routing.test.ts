@@ -12,6 +12,7 @@ test("clean URLs map to the expected application views", () => {
   assert.equal(viewFromPath("/overview"), "overview");
   assert.equal(viewFromPath("/qa-queue"), "qa-queue");
   assert.equal(viewFromPath("/qa-cases"), "qa-cases");
+  assert.equal(viewFromPath("/tutorial"), "tutorial");
   assert.equal(viewFromPath("/real-data"), "overview");
   assert.equal(viewFromPath("/cases/LG-0001"), "case-detail");
   assert.equal(viewFromPath("/unknown"), "overview");
@@ -22,6 +23,7 @@ test("application views resolve to React Router paths", () => {
   assert.equal(pathForView("qa-queue"), "/qa-queue");
   assert.equal(pathForView("qa-cases"), "/qa-cases");
   assert.equal(pathForView("reports"), "/reports");
+  assert.equal(pathForView("tutorial"), "/tutorial");
 });
 
 test("top-level API navigation keeps only the dataset scope", () => {
@@ -98,4 +100,41 @@ test("Supabase quick login creates a real token-backed session for each role", (
   assert.match(demoAuthSource, /VITE_SUPABASE_DEMO_ANNOTATOR_EMAIL/);
   assert.match(demoAuthSource, /VITE_SUPABASE_DEMO_REVIEWER_EMAIL/);
   assert.match(demoAuthSource, /VITE_SUPABASE_DEMO_ADMIN_EMAIL/);
+});
+
+test("first-time users receive a versioned role-based tutorial", () => {
+  const appSource = readFileSync(
+    new URL("../src/App.tsx", import.meta.url),
+    "utf8",
+  );
+  const layoutSource = readFileSync(
+    new URL("../src/components/layout.tsx", import.meta.url),
+    "utf8",
+  );
+  const contentSource = readFileSync(
+    new URL("../src/config/tutorialContent.ts", import.meta.url),
+    "utf8",
+  );
+  const progressSource = readFileSync(
+    new URL("../src/state/useTutorialProgress.ts", import.meta.url),
+    "utf8",
+  );
+  const tutorialViewSource = readFileSync(
+    new URL("../src/views/TutorialView.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(appSource, /<TutorialWelcomeDialog/);
+  assert.match(appSource, /path="\/tutorial"/);
+  assert.match(appSource, /<TutorialView/);
+  assert.match(layoutSource, /tutorial: BookOpen/);
+  assert.match(contentSource, /export const TUTORIAL_VERSION = 1/);
+  assert.match(contentSource, /annotator:/);
+  assert.match(contentSource, /reviewer:/);
+  assert.match(contentSource, /admin:/);
+  assert.match(progressSource, /label-guardian:tutorial/);
+  assert.match(progressSource, /localStorage\.setItem/);
+  assert.match(progressSource, /user\.id.*user\.role/);
+  assert.match(tutorialViewSource, /tutorial-step-list/);
+  assert.match(tutorialViewSource, /Keyboard shortcuts/);
 });

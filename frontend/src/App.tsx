@@ -19,9 +19,12 @@ import { DatasetRunView } from "./views/DatasetRunView";
 import { PipelineView } from "./views/PipelineView";
 import { SettingsView } from "./views/SettingsView";
 import { AdminControlPlaneView } from "./views/AdminControlPlaneView";
+import { TutorialView } from "./views/TutorialView";
 import { LandingPage } from "./views/LandingPage";
 import { useMockData } from "./state/MockDataProvider";
+import { useTutorialProgress } from "./state/useTutorialProgress";
 import { isApiDataSourceEnabled } from "./api/labelGuardianApi";
+import { TutorialWelcomeDialog } from "./components/TutorialWelcomeDialog";
 import "./styles/index.css";
 
 function CaseDetailRoute({ onBack, onEditLabels }: { onBack: () => void; onEditLabels: () => void }) {
@@ -69,6 +72,10 @@ function App() {
     ? cloudDatasets.find((dataset) => dataset.id === cloudDatasetId) ?? cloudDatasets[0]
     : mockSelectedDataset;
   const datasets = apiDataSourceEnabled ? cloudDatasets : state.datasets;
+  const signedInForTutorial = auth.enabled ? Boolean(auth.user) : mockSignedIn;
+  const tutorial = useTutorialProgress(
+    signedInForTutorial && activeUser ? activeUser : null,
+  );
 
   if (location.pathname === "/") {
     return <LandingPage lang={language} onChangeLang={changeLanguage} />;
@@ -185,17 +192,35 @@ function App() {
     return <div className="fatal-state">Mock state chưa có user hoặc dataset.</div>;
   }
 
+  const tutorialWelcome = tutorial.showWelcome ? (
+    <TutorialWelcomeDialog
+      role={activeUser.role}
+      language={language}
+      onStart={() => {
+        tutorial.markWelcomeSeen();
+        navigateToView("tutorial");
+      }}
+      onSkip={tutorial.markWelcomeSeen}
+    />
+  ) : null;
+
   const authorizedRoute = appRoutes.find((route) => route.id === activeView);
   if (auth.enabled && authorizedRoute && !authorizedRoute.allowedRoles.includes(activeUser.role)) {
     return <Navigate to="/" replace />;
   }
 
   if (activeView === "annotator-workspace") {
-    return <AnnotatorWorkspaceView actorId={activeUser.id} onExit={() => navigateToView(activeUser.role === "annotator" ? "qa-cases" : "qa-queue")} onOpenQaCases={navigateToQaCases} />;
+    return (
+      <>
+        <AnnotatorWorkspaceView actorId={activeUser.id} onExit={() => navigateToView(activeUser.role === "annotator" ? "qa-cases" : "qa-queue")} onOpenQaCases={navigateToQaCases} />
+        {tutorialWelcome}
+      </>
+    );
   }
 
   return (
-    <AppShell
+    <>
+      <AppShell
       activeView={activeView}
       activeRole={activeUser.role}
       activeUser={activeUser}
@@ -256,10 +281,27 @@ function App() {
           <Route path="/pipeline" element={<PipelineView />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="/admin" element={<AdminControlPlaneView />} />
+          <Route
+            path="/tutorial"
+            element={
+              <TutorialView
+                role={activeUser.role}
+                language={language}
+                completedStepIds={tutorial.completedStepIds}
+                completedAt={tutorial.completedAt}
+                onToggleStep={tutorial.toggleStep}
+                onComplete={tutorial.completeTutorial}
+                onReset={tutorial.resetTutorial}
+                onNavigate={navigateToView}
+              />
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </DemoStateBoundary>
-    </AppShell>
+      </AppShell>
+      {tutorialWelcome}
+    </>
   );
 }
 

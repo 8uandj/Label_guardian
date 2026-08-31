@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_current_user, get_db_session, get_real_dataset_service, require_roles
 from src.config import IngestionSettings
 from src.models.auth_schemas import AuthenticatedUser
+from src.models.inference_schemas import InferenceImageReference
 from src.models.ingestion import QAImage, QAObject
 from src.models.real_dataset_schemas import (
     AnnotationDocument,
@@ -1237,10 +1238,23 @@ async def evaluate_real_dataset_image(
 ) -> RealDatasetEvaluation:
     try:
         image_payload: bytes | None = None
+        image_reference: InferenceImageReference | None = None
         if service.dataset_backend == "database":
             image_row = await _get_database_image_row(session, service, image_id, split=split)
             effective_image = await _get_database_image(session, service, image_id, split=split)
-            image_payload, _ = await asyncio.to_thread(_download_gcs_image, image_row)
+            if service.uses_remote_inference:
+                bucket, object_key = _bucket_and_key(image_row)
+                dataset_id, dataset_version = _image_dataset_release(service, effective_image)
+                image_reference = InferenceImageReference(
+                    dataset_id=dataset_id,
+                    dataset_version=dataset_version,
+                    split=split,
+                    image_id=image_id,
+                    bucket=bucket,
+                    object_key=object_key,
+                )
+            else:
+                image_payload, _ = await asyncio.to_thread(_download_gcs_image, image_row)
         else:
             base_image = service.get_image(split, image_id)
             effective_image = (
@@ -1265,6 +1279,7 @@ async def evaluate_real_dataset_image(
             force=force,
             image_override=effective_image,
             image_payload=image_payload,
+            image_reference=image_reference,
             revision=latest.version if latest else 0,
         )
         if not persist:

@@ -66,11 +66,17 @@ def canonical_detection_class(class_name: str) -> str | None:
 
 
 @lru_cache
+def get_yolo_model_by_name(model_name: str) -> Any:
+    """Load a YOLO checkpoint by name/path and cache it per runtime process."""
+    model_type = getattr(import_module("ultralytics"), "YOLO")
+    return model_type(model_name)
+
+
+@lru_cache
 def get_yolo_model() -> Any:
     """Load model YOLO — cache lại vì load weights (và tải về lần đầu) khá tốn thời gian."""
     settings = get_settings()
-    model_type = getattr(import_module("ultralytics"), "YOLO")
-    return model_type(settings.yolo_model_name)
+    return get_yolo_model_by_name(settings.yolo_model_name)
 
 
 def resolve_class_ids(model: Any, class_names: list[str]) -> tuple[list[int], list[str]]:

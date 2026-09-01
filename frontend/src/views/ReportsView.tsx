@@ -147,7 +147,7 @@ export function ReportsView({ state }: { state: MockState }) {
           <StatCard label="QA score" value={`${qaScore}%`} detail={`Average risk ${avgRisk}/100`} tone="blue" />
           <StatCard label="Review progress" value={`${apiCases.length ? Math.round((reviewed / apiCases.length) * 100) : 100}%`} detail={`${reviewed}/${apiCases.length} cases`} tone="purple" />
           <StatCard label="High risk" value={highRisk} detail="Risk score từ 80 trở lên" tone="green" />
-          <StatCard label="Dataset scope" value={apiSamples?.imageCount ?? 0} detail={`${apiSamples?.count ?? 0} samples · ${apiSamples?.classes.length ?? 0} classes`} tone="orange" />
+          <StatCard label="Dataset scope" value={apiSamples?.imageCount ?? 0} detail={`${apiSamples?.count ?? 0} samples · ${(apiSamples?.normalizedClasses ?? apiSamples?.classes)?.length ?? 0} classes`} tone="orange" />
         </section>
 
         <div className="reports-grid">

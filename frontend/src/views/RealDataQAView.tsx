@@ -39,15 +39,44 @@ function colorForLabel(label: string): string {
   return boxColors[index];
 }
 
+// Tô nổi bật toạ độ ("x 809–964, y 182–328 (theo pixel)") và độ tin cậy ("58%")
+// trong text giải thích / đề xuất của agent.
+const AGENT_HIGHLIGHT_PATTERN =
+  /(\d+(?:[.,]\d+)?\s?%|x:?\s?\d+\s?[–-]\s?\d+,\s?y:?\s?\d+\s?[–-]\s?\d+(?:\s?\(theo pixel\))?)/g;
+
+function highlightAgentText(text: string): Array<string | JSX.Element> {
+  return text.split(AGENT_HIGHLIGHT_PATTERN).map((part, index) => {
+    if (index % 2 === 0) return part;
+    const isConfidence = /%\s*$/.test(part);
+    return (
+      <span
+        key={index}
+        className={`agent-hl ${isConfidence ? "agent-hl-conf" : "agent-hl-coord"}`}
+      >
+        {part.trim()}
+      </span>
+    );
+  });
+}
+
+// Nhãn có class không tồn tại bên YOLO/COCO -> không hiển thị trên UI.
+function isDisplayableLabel(label: RealDatasetLabelDto): boolean {
+  return Boolean(label.normalizedClassName);
+}
+
 function displayedLabelCount(image: RealDatasetImageDto): number {
-  return image.labels.filter((label) =>
-    apiBoxIntersectsImage(label.bbox, image.width, image.height),
+  return image.labels.filter(
+    (label) =>
+      isDisplayableLabel(label) &&
+      apiBoxIntersectsImage(label.bbox, image.width, image.height),
   ).length;
 }
 
 function AnnotationBox({ label }: { label: RealDatasetLabelDto }) {
   const { x1, y1, x2, y2 } = label.bbox;
-  const color = colorForLabel(label.className);
+  const shownClass = label.normalizedClassName;
+  if (!shownClass) return null;
+  const color = colorForLabel(shownClass);
   return (
     <g>
       <rect
@@ -62,7 +91,7 @@ function AnnotationBox({ label }: { label: RealDatasetLabelDto }) {
       <rect
         x={x1}
         y={Math.max(0, y1 - 22)}
-        width={Math.max(64, label.className.length * 9)}
+        width={Math.max(64, shownClass.length * 9)}
         height="22"
         fill={color}
       />
@@ -73,7 +102,7 @@ function AnnotationBox({ label }: { label: RealDatasetLabelDto }) {
         fontSize="14"
         fontWeight="700"
       >
-        {label.className}
+        {shownClass}
       </text>
     </g>
   );
@@ -85,6 +114,7 @@ function PredictionBox({
   prediction: RealDatasetPredictionDto;
 }) {
   const { x1, y1, x2, y2 } = prediction.bbox;
+  const shownClass = prediction.normalizedClassName ?? prediction.className;
   return (
     <g>
       <rect
@@ -100,7 +130,7 @@ function PredictionBox({
       <rect
         x={x1}
         y={Math.max(0, y1 - 22)}
-        width={Math.max(90, prediction.className.length * 9)}
+        width={Math.max(90, shownClass.length * 9)}
         height="22"
         fill="#f59e0b"
       />
@@ -111,7 +141,7 @@ function PredictionBox({
         fontSize="14"
         fontWeight="700"
       >
-        {prediction.className} · {Math.round(prediction.confidence * 100)}%
+        {shownClass} · {Math.round(prediction.confidence * 100)}%
       </text>
     </g>
   );
@@ -200,8 +230,10 @@ export function RealDataQAView() {
   );
   const displayedLabels = useMemo(
     () =>
-      selected?.labels.filter((label) =>
-        apiBoxIntersectsImage(label.bbox, selected.width, selected.height),
+      selected?.labels.filter(
+        (label) =>
+          isDisplayableLabel(label) &&
+          apiBoxIntersectsImage(label.bbox, selected.width, selected.height),
       ) ?? [],
     [selected],
   );
@@ -301,7 +333,9 @@ export function RealDataQAView() {
           <Badge tone="neutral">
             {samplesQuery.data?.imageCount.toLocaleString()} camera views
           </Badge>
-          <Badge tone="neutral">{samplesQuery.data?.classes.length} lớp</Badge>
+          <Badge tone="neutral">
+            {(samplesQuery.data?.normalizedClasses ?? samplesQuery.data?.classes)?.length} lớp
+          </Badge>
         </div>
       </div>
 
@@ -571,9 +605,12 @@ export function RealDataQAView() {
                         <Badge tone={issue.severity}>{issue.severity}</Badge>
                         <strong>{issue.issueType.replaceAll("_", " ")}</strong>
                       </div>
-                      <p>{issue.explanation}</p>
+                      <p>{highlightAgentText(issue.explanation)}</p>
                       {issue.suggestedFix ? (
-                        <small>{t("Suggested fix", "Đề xuất")}: {issue.suggestedFix}</small>
+                        <small className="agent-suggestion">
+                          <b>{t("Suggested fix", "Đề xuất")}:</b>{" "}
+                          {highlightAgentText(issue.suggestedFix)}
+                        </small>
                       ) : null}
                     </article>
                   ))}
